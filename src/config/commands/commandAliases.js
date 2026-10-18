@@ -29,6 +29,7 @@ export const commandAliases = {
     'kick': 'kick',
     'mute': 'timeout',
     'warn': 'warn',
+    'c': 'purge'
     'clear': 'purge',
     'purge': 'purge',
     'untimeout': 'untimeout',
