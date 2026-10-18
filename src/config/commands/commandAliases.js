@@ -35,6 +35,8 @@ export const commandAliases = {
     'bc': 'botclear',
     'untimeout': 'untimeout',
     'unmute': 'untimeout',
+    'afk': 'afk'
+    'a': 'afk'
 
     'rank': 'rank',
     'lvl': 'rank',
