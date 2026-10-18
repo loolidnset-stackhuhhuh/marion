@@ -101,14 +101,14 @@ export async function createInitialHelpMenu(client) {
             },
             {
                 name: '\u200B',
-                value: `-# ${botName} is [open source](https://youtu.be/1jCZX8s3bJE?si=NPOYx-vxVE1I5vJK)`,
+                value: `-# ${botName} is an all in one [Discord](https://discord.gg) bot fit for all!`,
                 inline: false,
             },
         ],
     });
 
     embed.setFooter({ 
-        text: "Made with ❤️" 
+        text: "lovelorn Bot" 
     });
     embed.setTimestamp();
 
@@ -118,8 +118,8 @@ export async function createInitialHelpMenu(client) {
         .setStyle(ButtonStyle.Danger);
 
     const supportButton = new ButtonBuilder()
-        .setLabel("Support Server")
-        .setURL("https://discord.gg/QnWNz2dKCE")
+        .setLabel("Click For Help")
+        .setURL("https://discord.gg/sPRc9Mnkpx")
         .setStyle(ButtonStyle.Link);
 
     const selectRow = createSelectMenu(
