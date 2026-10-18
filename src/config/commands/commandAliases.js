@@ -37,7 +37,6 @@ export const commandAliases = {
     'unmute': 'untimeout',
     'afk': 'afk',
     'a': 'afk',
-    'gw': 'giveaway'
     'rank': 'rank',
     'lvl': 'rank',
     'xp': 'rank',
@@ -73,6 +72,7 @@ export const commandAliases = {
     'gdelete': 'gdelete',
     'greroll': 'greroll',
     'groll': 'greroll',
+    'gw': 'giveaway',
 
     'ticket': 'ticket',
     't': 'ticket',
