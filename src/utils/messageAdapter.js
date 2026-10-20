@@ -1,4 +1,3 @@
-// messageAdapter.js
 
 import { mapArgumentsToOptions } from './prefixParser.js';
 import { createEmbed } from './embeds.js';
@@ -59,6 +58,7 @@ export function createMockInteraction(message, commandData, args) {
   const mockInteraction = {
     user: message.author,
     member: message.member,
+
     get memberPermissions() {
       return message.member?.permissions ?? null;
     },
@@ -74,14 +74,17 @@ export function createMockInteraction(message, commandData, args) {
     options: {
       get: (name) => options.get(name),
       getString: (name) => options.getString(name),
+
       getUser: (name) => {
         const userId = options.getUser(name);
+
         if (!userId || !message.guild) return null;
 
         const mentionMatch = userId.match(/<@!?(\d+)>/);
         const id = mentionMatch ? mentionMatch[1] : userId;
 
         const cachedMember = message.guild.members.cache.get(id);
+
         if (cachedMember) {
           return cachedMember.user;
         }
@@ -93,8 +96,10 @@ export function createMockInteraction(message, commandData, args) {
           tag: 'Unknown#0000',
         };
       },
+
       getMember: (name) => {
         const userId = options.getUser(name);
+
         if (!userId || !message.guild) return null;
 
         const mentionMatch = userId.match(/<@!?(\d+)>/);
@@ -102,8 +107,10 @@ export function createMockInteraction(message, commandData, args) {
 
         return message.guild.members.cache.get(id) ?? null;
       },
+
       getChannel: (name) => {
         const channelId = options.getString(name);
+
         if (!channelId || !message.guild) return null;
 
         const mentionMatch = channelId.match(/<#(\d+)>/);
@@ -111,8 +118,10 @@ export function createMockInteraction(message, commandData, args) {
 
         return message.guild.channels.fetch(id).catch(() => null);
       },
+
       getRole: (name) => {
         const roleId = options.getString(name);
+
         if (!roleId || !message.guild) return null;
 
         const mentionMatch = roleId.match(/<@&(\d+)>/);
@@ -120,11 +129,13 @@ export function createMockInteraction(message, commandData, args) {
 
         return message.guild.roles.fetch(id).catch(() => null);
       },
+
       getInteger: (name) => options.getInteger(name),
       getBoolean: (name) => options.getBoolean(name),
       getSubcommand: () => options.getSubcommand(),
       getSubcommandGroup: () => options.getSubcommandGroup(),
       validateRequired: () => options.validateRequired(),
+
       _hoistedOptions: args.map((arg, index) => ({
         name: commandData?.options?.[index]?.name || `arg${index}`,
         value: arg,
@@ -145,79 +156,117 @@ export function createMockInteraction(message, commandData, args) {
 
     deleteReply: async () => {
       const replyMessage = coordinator.getReplyMessage();
+
       if (replyMessage?.deletable) {
         return replyMessage.delete();
       }
+
       if (message.deletable) {
         return message.delete();
       }
     },
 
-    fetchReply: async () => coordinator.getReplyMessage() || message,
+    fetchReply: async () =>
+      coordinator.getReplyMessage() || message,
 
     ephemeral: false,
     webhook: null,
   };
 
-  const coordinator = ResponseCoordinator.attach(mockInteraction, { message });
+  const coordinator = ResponseCoordinator.attach(
+    mockInteraction,
+    { message }
+  );
 
-  mockInteraction.reply = (payload) => coordinator.respond(payload);
-  mockInteraction.editReply = (payload) => coordinator.edit(payload);
-  mockInteraction.followUp = (payload) => coordinator.followUp(payload);
-  mockInteraction.deferReply = () => coordinator.deferLocal();
+  mockInteraction.reply = (payload) =>
+    coordinator.respond(payload);
+
+  mockInteraction.editReply = (payload) =>
+    coordinator.edit(payload);
+
+  mockInteraction.followUp = (payload) =>
+    coordinator.followUp(payload);
+
+  mockInteraction.deferReply = () =>
+    coordinator.deferLocal();
 
   InteractionHelper.patchInteractionResponses(mockInteraction);
 
   return mockInteraction;
 }
 
+// Allow commands with execute() or prefixExecute() to run with the prefix.
 export function supportsPrefixExecution(command) {
-  if (command.prefixOnly === false || command.slashOnly === true) {
-    return false;
-  }
-
-  const commandName = command.data?.name?.toLowerCase();
-  if (commandName && SLASH_ONLY_COMMANDS.has(commandName)) {
-    return false;
-  }
-
-  if (command.prefixExecute) {
-    return true;
-  }
-
-  return !!command.execute;
+  return Boolean(command?.execute || command?.prefixExecute);
 }
 
-export async function executePrefixCommand(command, message, args, client, prefixOverride = null, guildConfig = null) {
-  const mockInteraction = createMockInteraction(message, command.data, args);
+export async function executePrefixCommand(
+  command,
+  message,
+  args,
+  client,
+  prefixOverride = null,
+  guildConfig = null
+) {
+  const mockInteraction = createMockInteraction(
+    message,
+    command.data,
+    args
+  );
+
   const coordinator = mockInteraction._responseCoordinator;
   const prefix = prefixOverride || getCommandPrefix();
 
   try {
-    const permissionAllowed = await enforceDefaultCommandPermissions(mockInteraction, command, {
-      source: 'messageAdapter.executePrefixCommand',
-      guildConfig,
-    });
+    const permissionAllowed =
+      await enforceDefaultCommandPermissions(
+        mockInteraction,
+        command,
+        {
+          source: 'messageAdapter.executePrefixCommand',
+          guildConfig,
+        }
+      );
+
     if (!permissionAllowed) {
       return;
     }
 
-    const validation = mockInteraction.options.validateRequired();
+    const validation =
+      mockInteraction.options.validateRequired();
+
     if (!validation.valid) {
-      await coordinator.respondUsageFromCommand(prefix, command.data, validation);
+      await coordinator.respondUsageFromCommand(
+        prefix,
+        command.data,
+        validation
+      );
+
       return;
     }
 
     if (command.prefixExecute) {
-      await command.prefixExecute(mockInteraction, guildConfig, client);
+      await command.prefixExecute(
+        mockInteraction,
+        guildConfig,
+        client
+      );
     } else {
-      await command.execute(mockInteraction, guildConfig, client);
+      await command.execute(
+        mockInteraction,
+        guildConfig,
+        client
+      );
     }
   } catch (error) {
-    await handleInteractionError(mockInteraction, error, {
-      type: 'prefix_command',
-      command: command.data?.name,
-      source: 'messageAdapter.executePrefixCommand',
-    });
+    await handleInteractionError(
+      mockInteraction,
+      error,
+      {
+        type: 'prefix_command',
+        command: command.data?.name,
+        source: 'messageAdapter.executePrefixCommand',
+      }
+    );
   }
 }
