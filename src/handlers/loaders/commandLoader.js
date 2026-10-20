@@ -194,7 +194,7 @@ if (validationErrors.length > 0) {
 
 function prepareCommandsForRegistration(commands) {
 if (commands.length >= COMMAND_COUNT_WARN_THRESHOLD) {
-logger.warn(Command count (${commands.length}) is near Discord's ${MAX_COMMANDS} global command limit);
+logger.warn(`Command count (${commands.length}) is near Discord's ${MAX_COMMANDS} global command limit`);
 }
 
 if (commands.length <= MAX_COMMANDS) {
@@ -209,7 +209,7 @@ return truncated;
 
 async function registerGlobalCommands(client, clientId, commands, totalSubcommands) {
 if (!clientId) {
-throw new Error(‘CLIENT_ID is required for slash command registration’);
+throw new Error('CLIENT_ID is required for slash command registration');
 }
 
 if (!client.rest) {
