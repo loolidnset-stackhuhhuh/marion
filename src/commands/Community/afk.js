@@ -13,15 +13,16 @@ export default {
     category: 'community',
     async execute(interaction) {
         const key = `${interaction.guild.id}:${interaction.user.id}`;
-        const reason = interaction.options.getString('reason');
-        // No reason = remove AFK
-        if (!reason) {
-            if (!afkUsers.has(key)) {
-                return interaction.reply({
-                    content: '❌ You are not currently AFK.',
-                    ephemeral: true,
-                });
-            }
+        const reason = interaction.options.getString('reason') || 'AFK';
+
+afkUsers.set(key, {
+    reason,
+    timestamp: Date.now(),
+});
+
+return interaction.reply({
+    content: `💤 You are now AFK: **${reason}**`,
+});
             afkUsers.delete(key);
             return interaction.reply({
                 content: '👋 Your AFK status has been removed.',
