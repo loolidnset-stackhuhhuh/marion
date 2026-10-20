@@ -33,6 +33,8 @@ export const commandAliases = {
     'purge': 'purge',
     'c': 'purge',
     'bc': 'botclear',
+    'setup': 'setup',
+    'setupserver': 'setup',
     'untimeout': 'untimeout',
     'unmute': 'untimeout',
     'afk': 'afk',
