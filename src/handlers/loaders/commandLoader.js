@@ -223,33 +223,28 @@ function validateCommands(commands) {
 
 
 function prepareCommandsForRegistration(commands) {
-    const MAX_COMMANDS = 100;
-
-    if (commands.length > MAX_COMMANDS) {
-        const commandNames = commands.map((command) => command.name);
-
-        logger.error(
-            `Found ${commands.length} top-level slash commands, but Discord allows ${MAX_COMMANDS}.`
-        );
-
-        logger.error(
-            `Commands currently loaded: ${commandNames.join(', ')}`
-        );
-
-        throw new Error(
-            `Too many global slash commands: ${commands.length}/${MAX_COMMANDS}. ` +
-            `Remove or consolidate at least ${commands.length - MAX_COMMANDS} top-level commands.`
-        );
-    }
-
     if (commands.length >= COMMAND_COUNT_WARN_THRESHOLD) {
         logger.warn(
             `Command count (${commands.length}) is near Discord's ${MAX_COMMANDS} global command limit`
         );
     }
 
+    if (commands.length > MAX_COMMANDS) {
+        const commandNames = commands.map((command) => command.name);
+
+        logger.error(
+            `Found ${commands.length} top-level slash commands; Discord allows ${MAX_COMMANDS}.`
+        );
+        logger.error(`Loaded command names: ${commandNames.join(', ')}`);
+
+        throw new Error(
+            `Too many global slash commands: ${commands.length}/${MAX_COMMANDS}.`
+        );
+    }
+
     return commands;
 }
+
 
 
     if (commands.length <= MAX_COMMANDS) {
