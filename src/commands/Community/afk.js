@@ -5,11 +5,11 @@ export const afkUsers = new Map();
 export default {
     data: new SlashCommandBuilder()
         .setName('afk')
-        .setDescription('Set or remove your AFK status')
+        .setDescription('Set your AFK status')
         .addStringOption(option =>
             option
                 .setName('reason')
-                .setDescription('Why are you AFK?')
+                .setDescription('Your AFK status')
                 .setRequired(false)
         ),
 
@@ -25,18 +25,10 @@ export default {
         });
 
         const embed = new EmbedBuilder()
-            .setAuthor({
-                name: `${interaction.user.username} is now AFK`,
-                iconURL: interaction.user.displayAvatarURL(),
-            })
+            .setColor(0x57F287)
             .setDescription(
-                `💤 **${interaction.user} is now AFK.**\n\n` +
-                `> **Reason:** ${reason}`
-            )
-            .setTimestamp()
-            .setFooter({
-                text: 'AFK',
-            });
+                `:approve:  ${interaction.user}: You're now AFK with the status: **${reason}**`
+            );
 
         return interaction.reply({
             embeds: [embed],
