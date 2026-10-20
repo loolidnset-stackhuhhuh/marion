@@ -29,6 +29,8 @@ export default {
     try {
       if (message.author.bot || !message.guild) return;
 
+await handleAFK(message);
+
       logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
 
       const countingProcessed = await handleCountingGame(message, client);
