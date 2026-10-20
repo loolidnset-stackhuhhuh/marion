@@ -8,7 +8,7 @@ import {
 export default {
   data: new SlashCommandBuilder()
     .setName('setup')
-    .setDescription('Create the basic moderation roles and log channels')
+    .setDescription('Set up moderation roles, channels, and categories')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   category: 'Moderation',
@@ -22,9 +22,11 @@ export default {
       });
     }
 
-    if (!interaction.memberPermissions?.has(
-      PermissionFlagsBits.ManageGuild
-    )) {
+    if (
+      !interaction.memberPermissions?.has(
+        PermissionFlagsBits.ManageGuild
+      )
+    ) {
       return interaction.reply({
         content: 'You need Manage Server permission to use this command.',
       });
@@ -32,10 +34,12 @@ export default {
 
     const botMember = guild.members.me;
 
-    if (!botMember?.permissions.has([
-      PermissionFlagsBits.ManageRoles,
-      PermissionFlagsBits.ManageChannels,
-    ])) {
+    if (
+      !botMember?.permissions.has([
+        PermissionFlagsBits.ManageRoles,
+        PermissionFlagsBits.ManageChannels,
+      ])
+    ) {
       return interaction.reply({
         content:
           'I need Manage Roles and Manage Channels permissions to run setup.',
@@ -47,8 +51,9 @@ export default {
     try {
       const createdRoles = [];
       const createdChannels = [];
+      const createdCategories = [];
 
-      // Create missing roles without duplicating existing ones.
+      // Create or reuse moderation roles.
       for (const name of ['Jail', 'RMute', 'IMute']) {
         let role = guild.roles.cache.find(
           (r) => r.name.toLowerCase() === name.toLowerCase()
@@ -64,19 +69,57 @@ export default {
         }
       }
 
-      // Make log channels private to moderators.
+      // Create or reuse the Moderation category.
+      let moderationCategory = guild.channels.cache.find(
+        (c) =>
+          c.type === ChannelType.GuildCategory &&
+          c.name.toLowerCase() === 'moderation'
+      );
+
+      if (!moderationCategory) {
+        moderationCategory = await guild.channels.create({
+          name: 'Moderation',
+          type: ChannelType.GuildCategory,
+          reason: 'Marion server setup',
+        });
+
+        createdCategories.push('Moderation');
+      }
+
+      // Create or reuse the Moderation Logs category.
+      let logsCategory = guild.channels.cache.find(
+        (c) =>
+          c.type === ChannelType.GuildCategory &&
+          c.name.toLowerCase() === 'moderation logs'
+      );
+
+      if (!logsCategory) {
+        logsCategory = await guild.channels.create({
+          name: 'Moderation Logs',
+          type: ChannelType.GuildCategory,
+          reason: 'Marion server setup',
+        });
+
+        createdCategories.push('Moderation Logs');
+      }
+
+      // Find staff roles that can view moderation channels.
       const everyone = guild.roles.everyone;
 
       const staffRoles = guild.roles.cache.filter(
         (role) =>
           role.id !== everyone.id &&
           (
-            role.permissions.has(PermissionFlagsBits.ManageMessages) ||
-            role.permissions.has(PermissionFlagsBits.Administrator)
+            role.permissions.has(
+              PermissionFlagsBits.ManageMessages
+            ) ||
+            role.permissions.has(
+              PermissionFlagsBits.Administrator
+            )
           )
       );
 
-      const permissionOverwrites = [
+      const logPermissions = [
         {
           id: everyone.id,
           deny: [PermissionFlagsBits.ViewChannel],
@@ -100,6 +143,55 @@ export default {
         })),
       ];
 
+      // Create or reuse the jail channel.
+      let jailChannel = guild.channels.cache.find(
+        (c) =>
+          c.type === ChannelType.GuildText &&
+          c.name.toLowerCase() === 'jail'
+      );
+
+      const jailPermissions = [
+        {
+          id: everyone.id,
+          deny: [PermissionFlagsBits.ViewChannel],
+        },
+        {
+          id: botMember.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.ManageChannels,
+          ],
+        },
+        ...staffRoles.map((role) => ({
+          id: role.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+          ],
+        })),
+      ];
+
+      if (!jailChannel) {
+        jailChannel = await guild.channels.create({
+          name: 'jail',
+          type: ChannelType.GuildText,
+          parent: moderationCategory.id,
+          permissionOverwrites: jailPermissions,
+          reason: 'Marion server setup',
+        });
+
+        createdChannels.push('#jail');
+      } else if (jailChannel.parentId !== moderationCategory.id) {
+        await jailChannel.setParent(moderationCategory.id, {
+          lockPermissions: false,
+          reason: 'Organize Marion jail channel',
+        });
+      }
+
+      // Create or reuse the moderation log channels.
       for (const name of ['mod-log', 'message-log']) {
         let channel = guild.channels.cache.find(
           (c) =>
@@ -111,14 +203,21 @@ export default {
           channel = await guild.channels.create({
             name,
             type: ChannelType.GuildText,
-            permissionOverwrites,
+            parent: logsCategory.id,
+            permissionOverwrites: logPermissions,
             reason: 'Marion server setup',
           });
 
           createdChannels.push(`#${name}`);
+        } else if (channel.parentId !== logsCategory.id) {
+          await channel.setParent(logsCategory.id, {
+            lockPermissions: false,
+            reason: 'Organize Marion moderation logs',
+          });
         }
       }
 
+      // Send setup results.
       const roleList = ['Jail', 'RMute', 'IMute']
         .map((name) => {
           const role = guild.roles.cache.find(
@@ -129,42 +228,47 @@ export default {
         })
         .join(', ');
 
-      const channelList = ['mod-log', 'message-log']
-        .map((name) => {
-          const channel = guild.channels.cache.find(
-            (c) =>
-              c.type === ChannelType.GuildText &&
-              c.name.toLowerCase() === name
-          );
+      const jail = guild.channels.cache.find(
+        (c) =>
+          c.type === ChannelType.GuildText &&
+          c.name.toLowerCase() === 'jail'
+      );
 
-          return `${channel}`;
-        })
-        .join(', ');
+      const modLog = guild.channels.cache.find(
+        (c) =>
+          c.type === ChannelType.GuildText &&
+          c.name.toLowerCase() === 'mod-log'
+      );
+
+      const messageLog = guild.channels.cache.find(
+        (c) =>
+          c.type === ChannelType.GuildText &&
+          c.name.toLowerCase() === 'message-log'
+      );
 
       await interaction.editReply({
         content: [
-          '**Server setup complete.**',
+          '**Marion setup complete!**',
           '',
           `**Roles:** ${roleList}`,
-          `**Log channels:** ${channelList}`,
+          `**Moderation category:** ${moderationCategory}`,
+          `**Jail channel:** ${jail}`,
+          `**Logs category:** ${logsCategory}`,
+          `**Mod log:** ${modLog}`,
+          `**Message log:** ${messageLog}`,
           '',
           `**New roles:** ${createdRoles.join(', ') || 'None needed'}`,
+          `**New categories:** ${createdCategories.join(', ') || 'None needed'}`,
           `**New channels:** ${createdChannels.join(', ') || 'None needed'}`,
         ].join('\n'),
       });
     } catch (error) {
       console.error('Marion setup command error:', error);
 
-      const reply = {
+      await interaction.editReply({
         content:
-          'Setup could not finish. Check my role hierarchy, permissions, and server audit log.',
-      };
-
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply(reply).catch(() => {});
-      } else {
-        await interaction.reply(reply).catch(() => {});
-      }
+          'Setup could not finish. Check Marion’s permissions and role hierarchy, then check the Railway logs for the error.',
+      }).catch(() => {});
     }
   },
 };
