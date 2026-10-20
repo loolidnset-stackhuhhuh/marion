@@ -1,4 +1,5 @@
 import { Events } from 'discord.js';
+import { afkUsers } from '../commands/Community/afk.js';
 import { logger } from '../utils/logger.js';
 import { getLevelingConfig, getUserLevelData } from '../services/leveling/leveling.js';
 import { addXp } from '../services/leveling/xpSystem.js';
