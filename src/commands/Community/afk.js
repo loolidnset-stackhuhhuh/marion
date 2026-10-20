@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
 export const afkUsers = new Map();
 
@@ -24,8 +24,22 @@ export default {
             timestamp: Date.now(),
         });
 
+        const embed = new EmbedBuilder()
+            .setAuthor({
+                name: `${interaction.user.username} is now AFK`,
+                iconURL: interaction.user.displayAvatarURL(),
+            })
+            .setDescription(
+                `💤 **${interaction.user} is now AFK.**\n\n` +
+                `> **Reason:** ${reason}`
+            )
+            .setTimestamp()
+            .setFooter({
+                text: 'AFK',
+            });
+
         return interaction.reply({
-            content: `💤 You are now AFK: **${reason}**`,
+            embeds: [embed],
         });
     },
 };
