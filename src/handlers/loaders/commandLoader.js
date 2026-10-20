@@ -1,4 +1,4 @@
-import fs from ‘fs/promises’;
+import fs from 'fs/promises';
 import path from ‘path’;
 import { fileURLToPath, pathToFileURL } from ‘url’;
 import { Collection } from ‘discord.js’;
