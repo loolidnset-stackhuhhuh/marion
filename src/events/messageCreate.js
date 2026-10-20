@@ -254,3 +254,49 @@ async function handleLeveling(message, client) {
     logger.error('Error handling leveling for message:', error);
   }
 }
+async function handleAFK(message) {
+    try {
+        const authorKey = `${message.guild.id}:${message.author.id}`;
+
+        // Remove AFK when the user talks
+        if (afkUsers.has(authorKey)) {
+            const afkData = afkUsers.get(authorKey);
+
+            afkUsers.delete(authorKey);
+
+            await message.channel.send(
+                `👋 Welcome back, <@${message.author.id}>! You are no longer AFK.`
+            ).catch(() => {});
+        }
+
+        // Check mentions for AFK users
+        for (const [userId] of message.mentions.users) {
+            if (userId === message.author.id) continue;
+
+            const key = `${message.guild.id}:${userId}`;
+            const afkData = afkUsers.get(key);
+
+            if (!afkData) continue;
+
+            const timeAway = Date.now() - afkData.timestamp;
+            const minutes = Math.floor(timeAway / 60000);
+
+            let timeText;
+
+            if (minutes < 1) {
+                timeText = 'just now';
+            } else if (minutes === 1) {
+                timeText = '1 minute ago';
+            } else {
+                timeText = `${minutes} minutes ago`;
+            }
+
+            await message.channel.send(
+                `💤 <@${userId}> is currently AFK: **${afkData.reason}**\n` +
+                `They went AFK ${timeText}.`
+            ).catch(() => {});
+        }
+    } catch (error) {
+        logger.error('Error handling AFK:', error);
+    }
+}
