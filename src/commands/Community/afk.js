@@ -5,11 +5,11 @@ export const afkUsers = new Map();
 export default {
     data: new SlashCommandBuilder()
         .setName('afk')
-        .setDescription('Set your AFK status')
+        .setDescription('Set or remove your AFK status')
         .addStringOption(option =>
             option
                 .setName('reason')
-                .setDescription('Your AFK status')
+                .setDescription('Why are you AFK?')
                 .setRequired(false)
         ),
 
@@ -27,7 +27,7 @@ export default {
         const embed = new EmbedBuilder()
             .setColor(0x57F287)
             .setDescription(
-                `:approve:  ${interaction.user}: You're now AFK with the status: **${reason}**`
+                `<:approve:1562121487165558947> ${interaction.user}: You're now AFK with the status: **${reason}**`
             );
 
         return interaction.reply({
