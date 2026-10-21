@@ -1,10 +1,8 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { successEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
-
 const durationChoices = [
     { name: "5 minutes", value: 5 },
     { name: "10 minutes", value: 10 },
@@ -14,7 +12,6 @@ const durationChoices = [
     { name: "1 day", value: 1440 },
     { name: "1 week", value: 10080 },
 ];
-
 export default {
     data: new SlashCommandBuilder()
         .setName("timeout")
@@ -38,7 +35,6 @@ export default {
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
     category: "moderation",
-
     async execute(interaction, config, client) {
         const deferSuccess = await InteractionHelper.safeDefer(interaction);
         if (!deferSuccess) {
@@ -49,12 +45,11 @@ export default {
             });
             return;
         }
-
         const targetUser = interaction.options.getUser("target");
         const member = interaction.options.getMember("target");
         const durationMinutes = interaction.options.getInteger("duration");
-        const reason = interaction.options.getString("reason") || "No reason provided";
-
+        const reason =
+            interaction.options.getString("reason") || "No reason provided";
         if (!targetUser) {
             throw new TitanBotError(
                 'Missing target user',
@@ -63,7 +58,6 @@ export default {
                 { subtype: 'invalid_user' },
             );
         }
-
         if (targetUser.id === interaction.user.id) {
             throw new TitanBotError(
                 "Cannot timeout self",
@@ -85,27 +79,16 @@ export default {
                 "The target user is not currently in this server.",
             );
         }
-
         const durationMs = durationMinutes * 60 * 1000;
-        const result = await ModerationService.timeoutUser({
+        await ModerationService.timeoutUser({
             guild: interaction.guild,
             member,
             moderator: interaction.member,
             durationMs,
             reason,
         });
-
-        const durationDisplay =
-            durationChoices.find((c) => c.value === durationMinutes)
-                ?.name || `${durationMinutes} minutes`;
-
         await InteractionHelper.safeEditReply(interaction, {
-            embeds: [
-                successEmbed(
-                    `⏳ **Timed out** ${targetUser.tag} for ${durationDisplay}.`,
-                    `**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
-                ),
-            ],
+            content: '👍',
         });
     },
 };
