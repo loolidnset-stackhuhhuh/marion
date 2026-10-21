@@ -1,7 +1,15 @@
-import('./src/events/messageCreate.js')
-  .then(() => console.log('MESSAGE_OK'))
-  .catch(error => console.error('MESSAGE_ERROR', error.stack || error));
+import fs from 'fs';
 
-import('./src/events/interactionCreate.js')
-  .then(() => console.log('INTERACTION_OK'))
-  .catch(error => console.error('INTERACTION_ERROR', error.stack || error));
+const files = [
+  'src/events/messageCreate.js',
+  'src/events/interactionCreate.js'
+];
+
+for (const file of files) {
+  const source = fs.readFileSync(file, 'utf8');
+
+  console.log(`\n=== ${file} ===`);
+  console.log(`Characters: ${source.length}`);
+  console.log(`First character code: ${source.charCodeAt(0)}`);
+  console.log(`Has BOM: ${source.charCodeAt(0) === 0xFEFF}`);
+}
