@@ -1,4 +1,5 @@
 import fs from 'fs';
+import vm from 'vm';
 
 const files = [
   'src/events/messageCreate.js',
@@ -8,8 +9,13 @@ const files = [
 for (const file of files) {
   const source = fs.readFileSync(file, 'utf8');
 
-  console.log(`\n=== ${file} ===`);
-  console.log(`Characters: ${source.length}`);
-  console.log(`First character code: ${source.charCodeAt(0)}`);
-  console.log(`Has BOM: ${source.charCodeAt(0) === 0xFEFF}`);
+  console.log(`\n=== Checking ${file} ===`);
+
+  try {
+    new vm.SourceTextModule(source);
+    console.log('SYNTAX_OK');
+  } catch (error) {
+    console.log('SYNTAX_ERROR');
+    console.log(error.stack || error);
+  }
 }
