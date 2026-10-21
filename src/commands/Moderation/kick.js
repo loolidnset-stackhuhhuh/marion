@@ -67,10 +67,7 @@ export default {
         });
 
         await InteractionHelper.universalReply(interaction, {
-            embeds: [
-                successEmbed(
-                    `👢 **Kicked** ${targetUser.tag}`,
-                    `**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
+            content: '👍',
                 ),
             ],
         });
