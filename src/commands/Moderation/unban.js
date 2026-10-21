@@ -1,5 +1,4 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { successEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { ModerationService } from '../../services/moderation/moderationService.js';
 import { replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
@@ -21,10 +20,12 @@ export default {
                 .setRequired(false),
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+
     category: "moderation",
 
     async execute(interaction, config, client) {
         const deferSuccess = await InteractionHelper.safeDefer(interaction);
+
         if (!deferSuccess) {
             logger.warn(`Unban interaction defer failed`, {
                 userId: interaction.user.id,
@@ -45,6 +46,7 @@ export default {
         }
 
         const targetUser = await client.users.fetch(targetId).catch(() => null);
+
         if (!targetUser) {
             return replyUserError(interaction, {
                 type: ErrorTypes.USER_INPUT,
@@ -52,9 +54,10 @@ export default {
             });
         }
 
-        const reason = interaction.options.getString("reason") || "No reason provided";
+        const reason =
+            interaction.options.getString("reason") || "No reason provided";
 
-        const result = await ModerationService.unbanUser({
+        await ModerationService.unbanUser({
             guild: interaction.guild,
             user: targetUser,
             moderator: interaction.member,
@@ -62,12 +65,7 @@ export default {
         });
 
         await InteractionHelper.safeEditReply(interaction, {
-            embeds: [
-                successEmbed(
-                    "✅ User Unbanned",
-                    `Successfully unbanned **${targetUser.tag}** from the server.\n\n**Reason:** ${reason}\n**Case ID:** #${result.caseId}`,
-                ),
-            ],
+            content: '👍',
         });
     },
 };
