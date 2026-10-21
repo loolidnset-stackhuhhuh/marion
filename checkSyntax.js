@@ -1,5 +1,4 @@
-import fs from 'fs';
-import vm from 'vm';
+import { execFileSync } from 'child_process';
 
 const files = [
   'src/events/messageCreate.js',
@@ -7,15 +6,15 @@ const files = [
 ];
 
 for (const file of files) {
-  const source = fs.readFileSync(file, 'utf8');
-
   console.log(`\n=== Checking ${file} ===`);
 
   try {
-    new vm.SourceTextModule(source);
+    execFileSync(process.execPath, ['--check', file], {
+      stdio: 'inherit'
+    });
+
     console.log('SYNTAX_OK');
-  } catch (error) {
+  } catch {
     console.log('SYNTAX_ERROR');
-    console.log(error.stack || error);
   }
 }
