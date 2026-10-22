@@ -62,38 +62,59 @@ function isWhitelisted(guild, userId, config) {
     );
 }
 
-function hasRequiredPermissions(guild, action) {
+function getRequiredPermission(action, punishment) {
+    switch (action) {
+        case 'ban':
+        case 'kick':
+            return PermissionFlagsBits.ViewAuditLog;
+
+        case 'botAdd':
+            if (punishment === 'kick') {
+                return PermissionFlagsBits.KickMembers;
+            }
+
+            if (punishment === 'strip') {
+                return PermissionFlagsBits.ManageRoles;
+            }
+
+            return PermissionFlagsBits.BanMembers;
+
+        case 'channelDelete':
+        case 'channelCreate':
+            return PermissionFlagsBits.ManageChannels;
+
+        case 'roleDelete':
+        case 'roleCreate':
+            return PermissionFlagsBits.ManageRoles;
+
+        case 'webhook':
+            return PermissionFlagsBits.ManageWebhooks;
+
+        case 'guildUpdate':
+            return PermissionFlagsBits.ManageGuild;
+
+        default:
+            return null;
+    }
+}
+
+function hasRequiredPermissions(guild, action, punishment) {
     const me = guild.members.me;
 
     if (!me) {
         return false;
     }
 
-    const permissions = me.permissions;
+    const requiredPermission = getRequiredPermission(
+        action,
+        punishment,
+    );
 
-    switch (action) {
-        case 'ban':
-        case 'kick':
-        case 'botAdd':
-            return permissions.has(PermissionFlagsBits.BanMembers);
-
-        case 'channelDelete':
-        case 'channelCreate':
-            return permissions.has(PermissionFlagsBits.ManageChannels);
-
-        case 'roleDelete':
-        case 'roleCreate':
-            return permissions.has(PermissionFlagsBits.ManageRoles);
-
-        case 'webhook':
-            return permissions.has(PermissionFlagsBits.ManageWebhooks);
-
-        case 'guildUpdate':
-            return permissions.has(PermissionFlagsBits.ManageGuild);
-
-        default:
-            return false;
+    if (!requiredPermission) {
+        return false;
     }
+
+    return me.permissions.has(requiredPermission);
 }
 
 async function punish(guild, userId, punishment) {
@@ -110,32 +131,50 @@ async function punish(guild, userId, punishment) {
     try {
         switch (punishment) {
             case 'ban':
+                if (!guild.members.me.permissions.has(
+                    PermissionFlagsBits.BanMembers
+                )) {
+                    return false;
+                }
+
                 await member.ban({
                     reason: 'Marion Anti-Nuke protection',
                 });
+
                 return true;
 
             case 'kick':
+                if (!guild.members.me.permissions.has(
+                    PermissionFlagsBits.KickMembers
+                )) {
+                    return false;
+                }
+
                 await member.kick(
                     'Marion Anti-Nuke protection'
                 );
+
                 return true;
 
             case 'strip':
+                if (!guild.members.me.permissions.has(
+                    PermissionFlagsBits.ManageRoles
+                )) {
+                    return false;
+                }
+
                 await member.roles.set(
                     [],
                     'Marion Anti-Nuke protection'
                 );
+
                 return true;
 
             case 'none':
                 return false;
 
             default:
-                await member.ban({
-                    reason: 'Marion Anti-Nuke protection',
-                });
-                return true;
+                return false;
         }
     } catch {
         return false;
@@ -215,14 +254,23 @@ export async function checkAntiNuke(guild, userId, action) {
 
     const thresholdConfig = antinuke.thresholds?.[action];
 
-    if (!thresholdConfig) {
+    if (
+        !thresholdConfig ||
+        !Number.isInteger(thresholdConfig.amount) ||
+        thresholdConfig.amount < 1 ||
+        !Number.isFinite(thresholdConfig.window) ||
+        thresholdConfig.window < 1
+    ) {
         return {
             triggered: false,
-            reason: 'no_threshold',
+            reason: 'invalid_threshold',
         };
     }
 
-    if (!hasRequiredPermissions(guild, action)) {
+    const punishment = antinuke.punishment ?? 'ban';
+
+    if (punishment !== 'none' &&
+        !hasRequiredPermissions(guild, action, punishment)) {
         return {
             triggered: false,
             reason: 'missing_permissions',
@@ -256,20 +304,15 @@ export async function checkAntiNuke(guild, userId, action) {
         };
     }
 
-    // Set the cooldown before awaiting punishment to avoid concurrent triggers.
     punishmentCooldowns.set(
         key,
         now + PUNISHMENT_COOLDOWN_MS
     );
 
-    const punishment = antinuke.punishment ?? 'ban';
-
     try {
-        const punished = await punish(
-            guild,
-            userId,
-            punishment
-        );
+        const punished = punishment === 'none'
+            ? false
+            : await punish(guild, userId, punishment);
 
         await sendLog(guild, {
             action,
