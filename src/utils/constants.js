@@ -25,74 +25,43 @@ export const DEFAULT_GUILD_CONFIG = {
     enabledEvents: {},
   },
 
-  verification: {
+  
+verification: {
     enabled: false,
-  },
+},
 
-  antinuke: {
+antinuke: {
     enabled: false,
-
     logChannelId: null,
-
     punishment: 'ban',
 
     whitelist: {
-      users: [],
-      roles: [],
+        users: [],
+        roles: [],
     },
 
     thresholds: {
-      ban: {
-        amount: 3,
-        window: 10_000,
-      },
-
-      kick: {
-        amount: 3,
-        window: 10_000,
-      },
-
-      channelDelete: {
-        amount: 3,
-        window: 10_000,
-      },
-
-      channelCreate: {
-        amount: 5,
-        window: 10_000,
-      },
-
-      roleDelete: {
-        amount: 3,
-        window: 10_000,
-      },
-
-      roleCreate: {
-        amount: 5,
-        window: 10_000,
-      },
-
-      webhook: {
-        amount: 3,
-        window: 10_000,
-      },
-
-      botAdd: {
-        amount: 1,
-        window: 10_000,
-      },
+        ban: { amount: 3, window: 10_000 },
+        kick: { amount: 3, window: 10_000 },
+        channelDelete: { amount: 3, window: 10_000 },
+        channelCreate: { amount: 5, window: 10_000 },
+        roleDelete: { amount: 3, window: 10_000 },
+        roleCreate: { amount: 5, window: 10_000 },
+        webhook: { amount: 3, window: 10_000 },
+        botAdd: { amount: 1, window: 10_000 },
+        guildUpdate: { amount: 1, window: 10_000 },
     },
 
     protections: {
-      ban: true,
-      kick: true,
-      channelDelete: true,
-      channelCreate: true,
-      roleDelete: true,
-      roleCreate: true,
-      webhook: true,
-      botAdd: true,
-      guildUpdate: true,
+        ban: true,
+        kick: true,
+        channelDelete: true,
+        channelCreate: true,
+        roleDelete: true,
+        roleCreate: true,
+        webhook: true,
+        botAdd: true,
+        guildUpdate: true,
     },
-  },
+},
 };
