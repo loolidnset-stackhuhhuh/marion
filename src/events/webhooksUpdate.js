@@ -1,3 +1,4 @@
+
 import { Events } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
@@ -5,59 +6,65 @@ import { logger } from '../utils/logger.js';
 import { getAuditLogExecutor } from '../services/antinuke/auditLog.js';
 import { checkAntiNuke } from '../services/antinuke/antinukeService.js';
 
+// Prevent the same audit-log entry from being processed repeatedly.
+const processedAuditEntries = new Map();
+
+const DEDUPLICATION_WINDOW = 15_000;
+
+function markAuditEntryProcessed(entryId) {
+    const now = Date.now();
+
+    // Remove expired entries to prevent unbounded memory growth.
+    for (const [id, timestamp] of processedAuditEntries) {
+        if (now - timestamp > DEDUPLICATION_WINDOW) {
+            processedAuditEntries.delete(id);
+        }
+    }
+
+    if (processedAuditEntries.has(entryId)) {
+        return false;
+    }
+
+    processedAuditEntries.set(entryId, now);
+
+    return true;
+}
+
 export default {
     name: Events.WebhooksUpdate,
 
     once: false,
 
     async execute(channel) {
+        if (!channel?.guild) {
+            return;
+        }
+
+        const guild = channel.guild;
+
         try {
-            if (!channel?.guild) {
+            const executor = await getAuditLogExecutor(
+                guild,
+                'webhook'
+            );
+
+            if (!executor?.userId || !executor.entry?.id) {
                 return;
             }
 
-            const guild = channel.guild;
-
-            /*
-             * Discord's WebhooksUpdate event does not tell us
-             * whether a webhook was created, updated, or deleted.
-             *
-             * We therefore check the audit log for each supported
-             * webhook action and let Anti-Nuke handle the threshold.
-             */
-
-            const actions = [
-                'webhook',
-            ];
-
-            for (const action of actions) {
-                try {
-                    const executor = await getAuditLogExecutor(
-                        guild,
-                        action
-                    );
-
-                    if (!executor?.userId) {
-                        continue;
-                    }
-
-                    await checkAntiNuke(
-                        guild,
-                        executor.userId,
-                        action
-                    );
-
-                } catch (error) {
-                    logger.warn(
-                        `Anti-Nuke webhook check failed in guild ${guild.id}:`,
-                        error
-                    );
-                }
+            // Don't count the same audit-log entry twice.
+            if (!markAuditEntryProcessed(executor.entry.id)) {
+                return;
             }
 
+            await checkAntiNuke(
+                guild,
+                executor.userId,
+                'webhook'
+            );
         } catch (error) {
-            logger.error(
-                `Error in webhooksUpdate event for guild ${channel?.guild?.id ?? 'unknown'}:`,
+            logger.warn(
+                `Anti-Nuke webhook check failed in guild ${guild.id}:`,
                 error
             );
         }
