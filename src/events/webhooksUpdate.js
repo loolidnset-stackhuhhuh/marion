@@ -1,38 +1,83 @@
 
 import { Events } from 'discord.js';
+import { AuditLogEvent } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
-
-import { getAuditLogExecutor } from '../services/antinuke/auditLog.js';
 import { checkAntiNuke } from '../services/antinuke/antinukeService.js';
 
-// Prevent the same audit-log entry from being processed repeatedly.
-const processedAuditEntries = new Map();
+const ACTION_TYPES = [
+    AuditLogEvent.WebhookCreate,
+    AuditLogEvent.WebhookUpdate,
+    AuditLogEvent.WebhookDelete,
+];
 
-const DEDUPLICATION_WINDOW = 15_000;
+const processedEntries = new Map();
 
-function markAuditEntryProcessed(entryId) {
+const MAX_ENTRY_AGE_MS = 10_000;
+const DEDUPLICATION_WINDOW_MS = 60_000;
+
+function cleanupProcessedEntries(now) {
+    for (const [entryId, timestamp] of processedEntries) {
+        if (now - timestamp > DEDUPLICATION_WINDOW_MS) {
+            processedEntries.delete(entryId);
+        }
+    }
+}
+
+async function findWebhookAuditEntry(guild) {
     const now = Date.now();
+    const matches = [];
 
-    // Remove expired entries to prevent unbounded memory growth.
-    for (const [id, timestamp] of processedAuditEntries) {
-        if (now - timestamp > DEDUPLICATION_WINDOW) {
-            processedAuditEntries.delete(id);
+    for (const type of ACTION_TYPES) {
+        const logs = await guild.fetchAuditLogs({
+            type,
+            limit: 10,
+        }).catch(() => null);
+
+        if (!logs) {
+            continue;
+        }
+
+        for (const entry of logs.entries.values()) {
+            if (!entry.id || !entry.executorId) {
+                continue;
+            }
+
+            const age = now - entry.createdTimestamp;
+
+            if (age < 0 || age > MAX_ENTRY_AGE_MS) {
+                continue;
+            }
+
+            matches.push({
+                entry,
+                type,
+            });
         }
     }
 
-    if (processedAuditEntries.has(entryId)) {
-        return false;
+    cleanupProcessedEntries(now);
+
+    matches.sort(
+        (a, b) =>
+            b.entry.createdTimestamp - a.entry.createdTimestamp
+    );
+
+    const match = matches.find(
+        ({ entry }) => !processedEntries.has(entry.id)
+    );
+
+    if (!match) {
+        return null;
     }
 
-    processedAuditEntries.set(entryId, now);
+    processedEntries.set(match.entry.id, now);
 
-    return true;
+    return match;
 }
 
 export default {
     name: Events.WebhooksUpdate,
-
     once: false,
 
     async execute(channel) {
@@ -43,29 +88,21 @@ export default {
         const guild = channel.guild;
 
         try {
-            const executor = await getAuditLogExecutor(
-                guild,
-                'webhook'
-            );
+            const match = await findWebhookAuditEntry(guild);
 
-            if (!executor?.userId || !executor.entry?.id) {
-                return;
-            }
-
-            // Don't count the same audit-log entry twice.
-            if (!markAuditEntryProcessed(executor.entry.id)) {
+            if (!match?.entry?.executorId) {
                 return;
             }
 
             await checkAntiNuke(
                 guild,
-                executor.userId,
-                'webhook'
+                match.entry.executorId,
+                'webhook',
             );
         } catch (error) {
             logger.warn(
                 `Anti-Nuke webhook check failed in guild ${guild.id}:`,
-                error
+                error,
             );
         }
     },
