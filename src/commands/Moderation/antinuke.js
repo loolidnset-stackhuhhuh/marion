@@ -4,7 +4,10 @@ import {
     ChannelType,
 } from 'discord.js';
 
-import { getGuildConfig, patchGuildConfig } from '../../services/config/guildConfig.js';
+import {
+    getGuildConfig,
+    patchGuildConfig,
+} from '../../services/config/guildConfig.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -60,7 +63,7 @@ export default {
         ) {
             return interaction.reply({
                 content:
-                    'You need Manage Server permission to use Anti-Nuke.',
+                    'You need **Manage Server** permission to use Anti-Nuke.',
                 ephemeral: true,
             });
         }
@@ -107,7 +110,7 @@ export default {
 
                 return interaction.reply({
                     content:
-                        '<:approve:1562121610813513871> Anti-Nuke protection has been **enabled**.',
+                        'Anti-Nuke protection has been **enabled**.',
                 });
             }
 
@@ -136,7 +139,7 @@ export default {
 
                 return interaction.reply({
                     content:
-                        '<:warning:1562130172004540439> Anti-Nuke protection has been **disabled**.',
+                        'Anti-Nuke protection has been **disabled**.',
                 });
             }
 
@@ -170,7 +173,7 @@ export default {
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> Anti-Nuke logs will now be sent to ${channel}.`,
+                        `Anti-Nuke logs will now be sent to ${channel}.`,
                 });
             }
 
