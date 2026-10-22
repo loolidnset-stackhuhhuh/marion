@@ -62,40 +62,11 @@ function isWhitelisted(guild, userId, config) {
     );
 }
 
-function getDetectionPermission(action) {
-    switch (action) {
-        case 'ban':
-        case 'kick':
-        case 'botAdd':
-            return PermissionFlagsBits.ViewAuditLog;
-
-        case 'channelDelete':
-        case 'channelCreate':
-            return PermissionFlagsBits.ManageChannels;
-
-        case 'roleDelete':
-        case 'roleCreate':
-            return PermissionFlagsBits.ManageRoles;
-
-        case 'webhook':
-            return PermissionFlagsBits.ManageWebhooks;
-
-        case 'guildUpdate':
-            return PermissionFlagsBits.ManageGuild;
-
-        default:
-            return null;
-    }
-}
-
-function hasDetectionPermissions(guild, action) {
-    const me = guild.members.me;
-    const permission = getDetectionPermission(action);
-
+function hasDetectionPermissions(guild) {
     return Boolean(
-        me &&
-        permission &&
-        me.permissions.has(permission)
+        guild.members.me?.permissions.has(
+            PermissionFlagsBits.ViewAuditLog
+        )
     );
 }
 
@@ -108,13 +79,19 @@ function hasPunishmentPermission(guild, punishment) {
 
     switch (punishment) {
         case 'ban':
-            return me.permissions.has(PermissionFlagsBits.BanMembers);
+            return me.permissions.has(
+                PermissionFlagsBits.BanMembers
+            );
 
         case 'kick':
-            return me.permissions.has(PermissionFlagsBits.KickMembers);
+            return me.permissions.has(
+                PermissionFlagsBits.KickMembers
+            );
 
         case 'strip':
-            return me.permissions.has(PermissionFlagsBits.ManageRoles);
+            return me.permissions.has(
+                PermissionFlagsBits.ManageRoles
+            );
 
         case 'none':
             return true;
@@ -125,7 +102,9 @@ function hasPunishmentPermission(guild, punishment) {
 }
 
 async function punish(guild, userId, punishment) {
-    if (!guild.members.me) {
+    const me = guild.members.me;
+
+    if (!me) {
         return false;
     }
 
@@ -181,8 +160,6 @@ async function punish(guild, userId, punishment) {
                 return true;
 
             case 'none':
-                return false;
-
             default:
                 return false;
         }
@@ -199,7 +176,11 @@ async function sendLog(guild, {
     punishment,
     punished,
 }) {
-    const config = await getGuildConfig(guild.id);
+    const config = await getGuildConfig(
+        guild.client,
+        guild.id
+    );
+
     const channelId = config?.antinuke?.logChannelId;
 
     if (!channelId) {
@@ -208,48 +189,72 @@ async function sendLog(guild, {
 
     const channel = guild.channels.cache.get(channelId);
 
-    if (!channel?.isTextBased() || !channel.permissionsFor(guild.members.me)?.has(
-        PermissionFlagsBits.SendMessages
-    )) {
+    if (!channel?.isTextBased()) {
         return;
     }
 
-    const embed = {
-        title: 'Anti-Nuke Triggered',
-        description: [
-            `**User:** <@${userId}>`,
-            `**Action:** ${ACTION_LABELS[action] ?? action}`,
-            `**Threshold:** ${count}/${threshold}`,
-            `**Punishment:** ${punishment}`,
-            `**Result:** ${punished ? 'Punishment applied' : punishment === 'none' ? 'Detection only' : 'Punishment failed'}`,
-        ].join('\n'),
-        timestamp: new Date().toISOString(),
-    };
+    const permissions = channel.permissionsFor(guild.members.me);
+
+    if (!permissions?.has(PermissionFlagsBits.SendMessages)) {
+        return;
+    }
+
+    const result = punishment === 'none'
+        ? 'Detection only'
+        : punished
+            ? 'Punishment applied'
+            : 'Punishment failed';
 
     await channel.send({
-        embeds: [embed],
+        embeds: [{
+            title: 'Anti-Nuke Triggered',
+            description: [
+                `**User:** <@${userId}>`,
+                `**Action:** ${ACTION_LABELS[action] ?? action}`,
+                `**Threshold:** ${count}/${threshold}`,
+                `**Punishment:** ${punishment}`,
+                `**Result:** ${result}`,
+            ].join('\n'),
+            timestamp: new Date().toISOString(),
+        }],
         allowedMentions: { parse: [] },
     }).catch(() => {});
 }
 
 export async function checkAntiNuke(guild, userId, action) {
     if (!guild || !userId || !action) {
-        return { triggered: false, reason: 'invalid_data' };
+        return {
+            triggered: false,
+            reason: 'invalid_data',
+        };
     }
 
-    const config = await getGuildConfig(guild.id);
+    const config = await getGuildConfig(
+        guild.client,
+        guild.id
+    );
+
     const antinuke = config?.antinuke;
 
     if (!antinuke?.enabled) {
-        return { triggered: false, reason: 'disabled' };
+        return {
+            triggered: false,
+            reason: 'disabled',
+        };
     }
 
     if (!antinuke.protections?.[action]) {
-        return { triggered: false, reason: 'protection_disabled' };
+        return {
+            triggered: false,
+            reason: 'protection_disabled',
+        };
     }
 
     if (isWhitelisted(guild, userId, antinuke)) {
-        return { triggered: false, reason: 'whitelisted' };
+        return {
+            triggered: false,
+            reason: 'whitelisted',
+        };
     }
 
     const thresholdConfig = antinuke.thresholds?.[action];
@@ -261,28 +266,43 @@ export async function checkAntiNuke(guild, userId, action) {
         !Number.isFinite(thresholdConfig.window) ||
         thresholdConfig.window < 1
     ) {
-        return { triggered: false, reason: 'invalid_threshold' };
+        return {
+            triggered: false,
+            reason: 'invalid_threshold',
+        };
     }
 
-    if (!hasDetectionPermissions(guild, action)) {
-        return { triggered: false, reason: 'missing_detection_permissions' };
+    if (!hasDetectionPermissions(guild)) {
+        return {
+            triggered: false,
+            reason: 'missing_audit_log_permission',
+        };
     }
 
     const punishment = antinuke.punishment ?? 'ban';
 
     if (!['ban', 'kick', 'strip', 'none'].includes(punishment)) {
-        return { triggered: false, reason: 'invalid_punishment' };
+        return {
+            triggered: false,
+            reason: 'invalid_punishment',
+        };
     }
 
     if (!hasPunishmentPermission(guild, punishment)) {
-        return { triggered: false, reason: 'missing_punishment_permissions' };
+        return {
+            triggered: false,
+            reason: 'missing_punishment_permissions',
+        };
     }
 
     const key = getBucketKey(guild.id, userId, action);
     const now = Date.now();
 
     if (now < (punishmentCooldowns.get(key) ?? 0)) {
-        return { triggered: false, reason: 'punishment_cooldown' };
+        return {
+            triggered: false,
+            reason: 'punishment_cooldown',
+        };
     }
 
     const bucket = getActionBucket(guild.id, userId, action);
@@ -294,11 +314,18 @@ export async function checkAntiNuke(guild, userId, action) {
     const threshold = thresholdConfig.amount;
 
     if (count < threshold) {
-        return { triggered: false, count, threshold };
+        return {
+            triggered: false,
+            count,
+            threshold,
+        };
     }
 
-    // Prevent simultaneous events from triggering duplicate punishments.
-    punishmentCooldowns.set(key, now + PUNISHMENT_COOLDOWN_MS);
+    // Set cooldown before awaiting punishment to prevent concurrent triggers.
+    punishmentCooldowns.set(
+        key,
+        now + PUNISHMENT_COOLDOWN_MS
+    );
 
     try {
         const punished = punishment === 'none'
