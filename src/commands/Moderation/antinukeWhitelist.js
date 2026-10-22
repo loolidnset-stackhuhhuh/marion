@@ -15,6 +15,7 @@ export default {
         .setDefaultMemberPermissions(
             PermissionFlagsBits.ManageGuild
         )
+
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('add-user')
@@ -26,6 +27,7 @@ export default {
                         .setRequired(true)
                 )
         )
+
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('remove-user')
@@ -37,6 +39,7 @@ export default {
                         .setRequired(true)
                 )
         )
+
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('add-role')
@@ -48,6 +51,7 @@ export default {
                         .setRequired(true)
                 )
         )
+
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('remove-role')
@@ -59,6 +63,7 @@ export default {
                         .setRequired(true)
                 )
         )
+
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('list')
@@ -103,6 +108,7 @@ export default {
                 users: Array.isArray(antinuke.whitelist?.users)
                     ? [...antinuke.whitelist.users]
                     : [],
+
                 roles: Array.isArray(antinuke.whitelist?.roles)
                     ? [...antinuke.whitelist.roles]
                     : [],
@@ -135,7 +141,7 @@ export default {
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> ${user} has been added to the Anti-Nuke whitelist.`,
+                        `${user} has been added to the Anti-Nuke whitelist.`,
                 });
             }
 
@@ -166,7 +172,7 @@ export default {
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> ${user} has been removed from the Anti-Nuke whitelist.`,
+                        `${user} has been removed from the Anti-Nuke whitelist.`,
                 });
             }
 
@@ -197,7 +203,7 @@ export default {
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> ${role} has been added to the Anti-Nuke whitelist.`,
+                        `${role} has been added to the Anti-Nuke whitelist.`,
                 });
             }
 
@@ -228,17 +234,21 @@ export default {
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> ${role} has been removed from the Anti-Nuke whitelist.`,
+                        `${role} has been removed from the Anti-Nuke whitelist.`,
                 });
             }
 
             if (subcommand === 'list') {
                 const users = whitelist.users.length
-                    ? whitelist.users.map((id) => `<@${id}>`).join('\n')
+                    ? whitelist.users
+                        .map((id) => `<@${id}>`)
+                        .join('\n')
                     : 'None';
 
                 const roles = whitelist.roles.length
-                    ? whitelist.roles.map((id) => `<@&${id}>`).join('\n')
+                    ? whitelist.roles
+                        .map((id) => `<@&${id}>`)
+                        .join('\n')
                     : 'None';
 
                 return interaction.reply({
