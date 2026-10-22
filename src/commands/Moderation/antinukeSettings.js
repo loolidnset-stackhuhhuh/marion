@@ -32,6 +32,61 @@ const PROTECTION_NAMES = {
     guildUpdate: 'Server Updates',
 };
 
+function getDefaultThresholds() {
+    return {
+        ban: {
+            amount: 3,
+            window: 10_000,
+        },
+        kick: {
+            amount: 3,
+            window: 10_000,
+        },
+        channelDelete: {
+            amount: 3,
+            window: 10_000,
+        },
+        channelCreate: {
+            amount: 5,
+            window: 10_000,
+        },
+        roleDelete: {
+            amount: 3,
+            window: 10_000,
+        },
+        roleCreate: {
+            amount: 5,
+            window: 10_000,
+        },
+        webhook: {
+            amount: 3,
+            window: 10_000,
+        },
+        botAdd: {
+            amount: 1,
+            window: 10_000,
+        },
+        guildUpdate: {
+            amount: 1,
+            window: 10_000,
+        },
+    };
+}
+
+function getDefaultProtections() {
+    return {
+        ban: true,
+        kick: true,
+        channelDelete: true,
+        channelCreate: true,
+        roleDelete: true,
+        roleCreate: true,
+        webhook: true,
+        botAdd: true,
+        guildUpdate: true,
+    };
+}
+
 export default {
     data: new SlashCommandBuilder()
         .setName('antinuke-settings')
@@ -65,7 +120,7 @@ export default {
                             {
                                 name: 'Detection Only',
                                 value: 'none',
-                            },
+                            }
                         )
                 )
         )
@@ -89,7 +144,9 @@ export default {
                 .addBooleanOption((option) =>
                     option
                         .setName('enabled')
-                        .setDescription('Whether this protection is enabled')
+                        .setDescription(
+                            'Whether this protection is enabled'
+                        )
                         .setRequired(true)
                 )
         )
@@ -113,7 +170,9 @@ export default {
                 .addIntegerOption((option) =>
                     option
                         .setName('amount')
-                        .setDescription('Number of actions required')
+                        .setDescription(
+                            'Number of actions required'
+                        )
                         .setMinValue(1)
                         .setMaxValue(100)
                         .setRequired(true)
@@ -121,7 +180,9 @@ export default {
                 .addIntegerOption((option) =>
                     option
                         .setName('window')
-                        .setDescription('Time window in seconds')
+                        .setDescription(
+                            'Time window in seconds'
+                        )
                         .setMinValue(1)
                         .setMaxValue(300)
                         .setRequired(true)
@@ -131,7 +192,9 @@ export default {
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('reset')
-                .setDescription('Reset Anti-Nuke settings to their defaults')
+                .setDescription(
+                    'Reset Anti-Nuke settings to their defaults'
+                )
         ),
 
     category: 'Moderation',
@@ -141,7 +204,8 @@ export default {
 
         if (!guild) {
             return interaction.reply({
-                content: 'This command can only be used in a server.',
+                content:
+                    'This command can only be used in a server.',
                 ephemeral: true,
             });
         }
@@ -158,7 +222,8 @@ export default {
             });
         }
 
-        const subcommand = interaction.options.getSubcommand();
+        const subcommand =
+            interaction.options.getSubcommand();
 
         try {
             const config = await getGuildConfig(
@@ -169,18 +234,21 @@ export default {
             const antinuke = config?.antinuke ?? {};
 
             const protections = {
+                ...getDefaultProtections(),
                 ...(antinuke.protections ?? {}),
             };
 
             const thresholds = {
+                ...getDefaultThresholds(),
                 ...(antinuke.thresholds ?? {}),
             };
 
             if (subcommand === 'punishment') {
-                const type = interaction.options.getString(
-                    'type',
-                    true
-                );
+                const type =
+                    interaction.options.getString(
+                        'type',
+                        true
+                    );
 
                 await patchGuildConfig(
                     guild.client,
@@ -192,27 +260,30 @@ export default {
                         },
                     },
                     {
-                        source: 'antinuke.settings.punishment',
+                        source:
+                            'antinuke.settings.punishment',
                         userId: interaction.user.id,
                     }
                 );
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> Anti-Nuke punishment set to **${type}**.`,
+                        `Anti-Nuke punishment set to **${type}**.`,
                 });
             }
 
             if (subcommand === 'protection') {
-                const type = interaction.options.getString(
-                    'type',
-                    true
-                );
+                const type =
+                    interaction.options.getString(
+                        'type',
+                        true
+                    );
 
-                const enabled = interaction.options.getBoolean(
-                    'enabled',
-                    true
-                );
+                const enabled =
+                    interaction.options.getBoolean(
+                        'enabled',
+                        true
+                    );
 
                 protections[type] = enabled;
 
@@ -226,27 +297,34 @@ export default {
                         },
                     },
                     {
-                        source: 'antinuke.settings.protection',
+                        source:
+                            'antinuke.settings.protection',
                         userId: interaction.user.id,
                     }
                 );
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> **${PROTECTION_NAMES[type]}** protection is now **${enabled ? 'enabled' : 'disabled'}**.`,
+                        `**${PROTECTION_NAMES[type]}** protection is now **${
+                            enabled
+                                ? 'enabled'
+                                : 'disabled'
+                        }**.`,
                 });
             }
 
             if (subcommand === 'threshold') {
-                const type = interaction.options.getString(
-                    'type',
-                    true
-                );
+                const type =
+                    interaction.options.getString(
+                        'type',
+                        true
+                    );
 
-                const amount = interaction.options.getInteger(
-                    'amount',
-                    true
-                );
+                const amount =
+                    interaction.options.getInteger(
+                        'amount',
+                        true
+                    );
 
                 const windowSeconds =
                     interaction.options.getInteger(
@@ -269,14 +347,15 @@ export default {
                         },
                     },
                     {
-                        source: 'antinuke.settings.threshold',
+                        source:
+                            'antinuke.settings.threshold',
                         userId: interaction.user.id,
                     }
                 );
 
                 return interaction.reply({
                     content:
-                        `<:approve:1562121610813513871> **${PROTECTION_NAMES[type]}** threshold set to **${amount} actions / ${windowSeconds}s**.`,
+                        `**${PROTECTION_NAMES[type]}** threshold set to **${amount} actions / ${windowSeconds}s**.`,
                 });
             }
 
@@ -291,56 +370,11 @@ export default {
                         roles: [],
                     },
 
-                    thresholds: {
-                        ban: {
-                            amount: 3,
-                            window: 10_000,
-                        },
-                        kick: {
-                            amount: 3,
-                            window: 10_000,
-                        },
-                        channelDelete: {
-                            amount: 3,
-                            window: 10_000,
-                        },
-                        channelCreate: {
-                            amount: 5,
-                            window: 10_000,
-                        },
-                        roleDelete: {
-                            amount: 3,
-                            window: 10_000,
-                        },
-                        roleCreate: {
-                            amount: 5,
-                            window: 10_000,
-                        },
-                        webhook: {
-                            amount: 3,
-                            window: 10_000,
-                        },
-                        botAdd: {
-                            amount: 1,
-                            window: 10_000,
-                        },
-                        guildUpdate: {
-                            amount: 1,
-                            window: 10_000,
-                        },
-                    },
+                    thresholds:
+                        getDefaultThresholds(),
 
-                    protections: {
-                        ban: true,
-                        kick: true,
-                        channelDelete: true,
-                        channelCreate: true,
-                        roleDelete: true,
-                        roleCreate: true,
-                        webhook: true,
-                        botAdd: true,
-                        guildUpdate: true,
-                    },
+                    protections:
+                        getDefaultProtections(),
                 };
 
                 await patchGuildConfig(
@@ -350,14 +384,15 @@ export default {
                         antinuke: defaultAntinuke,
                     },
                     {
-                        source: 'antinuke.settings.reset',
+                        source:
+                            'antinuke.settings.reset',
                         userId: interaction.user.id,
                     }
                 );
 
                 return interaction.reply({
                     content:
-                        '<:approve:1562121610813513871> Anti-Nuke settings have been reset to their defaults.',
+                        'Anti-Nuke settings have been reset to their defaults.',
                 });
             }
         } catch (error) {
