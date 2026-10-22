@@ -1,15 +1,31 @@
-import { Events, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+
+import {
+    Events,
+    EmbedBuilder,
+    PermissionFlagsBits,
+} from 'discord.js';
 
 import { getColor, botConfig } from '../config/bot.js';
-import { getWelcomeConfig, getUserApplications, deleteApplication } from '../utils/database.js';
+
+import {
+    getWelcomeConfig,
+    getUserApplications,
+    deleteApplication,
+    getGuildBirthdays,
+    deleteBirthday,
+} from '../utils/database.js';
 
 import { formatWelcomeMessage } from '../utils/welcome.js';
 
-import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
+import {
+    logEvent,
+    EVENT_TYPES,
+} from '../services/loggingService.js';
 
-import { getServerCounters, updateCounter } from '../services/serverstatsService.js';
-
-import { getGuildBirthdays, deleteBirthday } from '../utils/database.js';
+import {
+    getServerCounters,
+    updateCounter,
+} from '../services/serverstatsService.js';
 
 import { deleteUserLevelData } from '../services/leveling/leveling.js';
 
@@ -17,6 +33,44 @@ import { logger } from '../utils/logger.js';
 
 import { getAuditLogExecutor } from '../services/antinuke/auditLog.js';
 import { checkAntiNuke } from '../services/antinuke/antinukeService.js';
+
+const KICK_LOOKUP_ATTEMPTS = 3;
+const KICK_LOOKUP_DELAY_MS = 800;
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function checkForKick(guild, userId) {
+    for (
+        let attempt = 0;
+        attempt < KICK_LOOKUP_ATTEMPTS;
+        attempt++
+    ) {
+        const executor = await getAuditLogExecutor(
+            guild,
+            'kick',
+            userId
+        );
+
+        if (executor?.userId && executor.entry?.target?.id === userId) {
+            await checkAntiNuke(
+                guild,
+                executor.userId,
+                'kick'
+            );
+
+            return true;
+        }
+
+        if (attempt < KICK_LOOKUP_ATTEMPTS - 1) {
+            await delay(KICK_LOOKUP_DELAY_MS);
+        }
+    }
+
+    // No matching audit-log entry: do not count this as a kick.
+    return false;
+}
 
 export default {
     name: Events.GuildMemberRemove,
@@ -27,33 +81,12 @@ export default {
         try {
             const { guild, user } = member;
 
-            /*
-             * ============================
-             * ANTI-NUKE — MASS KICK
-             * ============================
-             *
-             * A memberRemove event does not tell us
-             * whether the member left voluntarily or
-             * was kicked.
-             *
-             * Discord's audit log identifies the person
-             * who performed the kick.
-             */
+            // =====================================================
+            // ANTI-NUKE: KICK DETECTION
+            // =====================================================
 
             try {
-                const executor = await getAuditLogExecutor(
-                    guild,
-                    'kick',
-                    user.id
-                );
-
-                if (executor?.userId) {
-                    await checkAntiNuke(
-                        guild,
-                        executor.userId,
-                        'kick'
-                    );
-                }
+                await checkForKick(guild, user.id);
             } catch (error) {
                 logger.warn(
                     `Anti-Nuke kick check failed in guild ${guild.id}:`,
@@ -61,11 +94,9 @@ export default {
                 );
             }
 
-            /*
-             * ============================
-             * GOODBYE SYSTEM
-             * ============================
-             */
+            // =====================================================
+            // GOODBYE MESSAGE
+            // =====================================================
 
             const welcomeConfig = await getWelcomeConfig(
                 member.client,
@@ -90,135 +121,127 @@ export default {
                         : null;
 
                     if (
-                        !permissions?.has([
+                        permissions?.has([
                             PermissionFlagsBits.ViewChannel,
-                            PermissionFlagsBits.SendMessages
+                            PermissionFlagsBits.SendMessages,
                         ])
                     ) {
-                        return;
-                    }
+                        const formatData = {
+                            user,
+                            guild,
+                            member,
+                        };
 
-                    const formatData = {
-                        user,
-                        guild,
-                        member
-                    };
-
-                    const goodbyeMessage =
-                        formatWelcomeMessage(
-                            welcomeConfig.leaveMessage ||
-                            welcomeConfig.leaveEmbed?.description ||
-                            botConfig.welcome?.defaultGoodbyeMessage ||
-                            '{user} has left the server.',
-                            formatData
-                        );
-
-                    const embedTitle =
-                        formatWelcomeMessage(
-                            welcomeConfig.leaveEmbed?.title ||
-                            '👋 Goodbye',
-                            formatData
-                        );
-
-                    const embedFooter =
-                        welcomeConfig.leaveEmbed?.footer
-                            ? formatWelcomeMessage(
-                                welcomeConfig.leaveEmbed.footer,
+                        const goodbyeMessage =
+                            formatWelcomeMessage(
+                                welcomeConfig.leaveMessage ||
+                                welcomeConfig.leaveEmbed?.description ||
+                                botConfig.welcome?.defaultGoodbyeMessage ||
+                                '{user} has left the server.',
                                 formatData
-                            )
-                            : `Goodbye from ${guild.name}!`;
-
-                    const canEmbed =
-                        permissions.has(
-                            PermissionFlagsBits.EmbedLinks
-                        );
-
-                    if (!canEmbed) {
-                        await channel.send({
-                            content:
-                                welcomeConfig?.goodbyePing
-                                    ? `<@${user.id}> ${goodbyeMessage}`
-                                    : goodbyeMessage,
-
-                            allowedMentions:
-                                welcomeConfig?.goodbyePing
-                                    ? { users: [user.id] }
-                                    : { parse: [] }
-                        });
-                    } else {
-                        const embed =
-                            new EmbedBuilder()
-                                .setTitle(embedTitle)
-                                .setDescription(goodbyeMessage)
-                                .setColor(
-                                    welcomeConfig.leaveEmbed?.color ||
-                                    getColor('error')
-                                )
-                                .setThumbnail(
-                                    user.displayAvatarURL()
-                                )
-                                .addFields(
-                                    {
-                                        name: 'User',
-                                        value: `${user.tag} (${user.id})`,
-                                        inline: true
-                                    },
-                                    {
-                                        name: 'Member Count',
-                                        value:
-                                            guild.memberCount.toString(),
-                                        inline: true
-                                    }
-                                )
-                                .setTimestamp()
-                                .setFooter({
-                                    text: embedFooter
-                                });
-
-                        if (
-                            typeof welcomeConfig.leaveEmbed?.image ===
-                            'string'
-                        ) {
-                            embed.setImage(
-                                welcomeConfig.leaveEmbed.image
                             );
-                        } else if (
-                            welcomeConfig.leaveEmbed?.image?.url
-                        ) {
-                            embed.setImage(
-                                welcomeConfig.leaveEmbed.image.url
-                            );
-                        }
 
-                        await channel.send({
-                            content:
-                                welcomeConfig?.goodbyePing
+                        const embedTitle =
+                            formatWelcomeMessage(
+                                welcomeConfig.leaveEmbed?.title ||
+                                '👋 Goodbye',
+                                formatData
+                            );
+
+                        const embedFooter =
+                            welcomeConfig.leaveEmbed?.footer
+                                ? formatWelcomeMessage(
+                                    welcomeConfig.leaveEmbed.footer,
+                                    formatData
+                                )
+                                : `Goodbye from ${guild.name}!`;
+
+                        const canEmbed =
+                            permissions.has(
+                                PermissionFlagsBits.EmbedLinks
+                            );
+
+                        if (!canEmbed) {
+                            await channel.send({
+                                content:
+                                    welcomeConfig.goodbyePing
+                                        ? `<@${user.id}> ${goodbyeMessage}`
+                                        : goodbyeMessage,
+
+                                allowedMentions:
+                                    welcomeConfig.goodbyePing
+                                        ? { users: [user.id] }
+                                        : { parse: [] },
+                            });
+                        } else {
+                            const embed =
+                                new EmbedBuilder()
+                                    .setTitle(embedTitle)
+                                    .setDescription(goodbyeMessage)
+                                    .setColor(
+                                        welcomeConfig.leaveEmbed?.color ||
+                                        getColor('error')
+                                    )
+                                    .setThumbnail(
+                                        user.displayAvatarURL()
+                                    )
+                                    .addFields(
+                                        {
+                                            name: 'User',
+                                            value: `${user.tag} (${user.id})`,
+                                            inline: true,
+                                        },
+                                        {
+                                            name: 'Member Count',
+                                            value: guild.memberCount.toString(),
+                                            inline: true,
+                                        }
+                                    )
+                                    .setTimestamp()
+                                    .setFooter({
+                                        text: embedFooter,
+                                    });
+
+                            if (
+                                typeof welcomeConfig.leaveEmbed?.image ===
+                                'string'
+                            ) {
+                                embed.setImage(
+                                    welcomeConfig.leaveEmbed.image
+                                );
+                            } else if (
+                                welcomeConfig.leaveEmbed?.image?.url
+                            ) {
+                                embed.setImage(
+                                    welcomeConfig.leaveEmbed.image.url
+                                );
+                            }
+
+                            await channel.send({
+                                content: welcomeConfig.goodbyePing
                                     ? `<@${user.id}>`
                                     : undefined,
 
-                            allowedMentions:
-                                welcomeConfig?.goodbyePing
-                                    ? { users: [user.id] }
-                                    : { parse: [] },
+                                allowedMentions:
+                                    welcomeConfig.goodbyePing
+                                        ? { users: [user.id] }
+                                        : { parse: [] },
 
-                            embeds: [embed]
-                        });
+                                embeds: [embed],
+                            });
+                        }
                     }
                 }
             }
 
-            /*
-             * ============================
-             * MEMBER LEAVE LOGGING
-             * ============================
-             */
+            // =====================================================
+            // MEMBER LEAVE LOG
+            // =====================================================
 
             try {
                 await logEvent({
                     client: member.client,
-
                     guildId: guild.id,
-
                     eventType: EVENT_TYPES.MEMBER_LEAVE,
 
                     data: {
@@ -235,10 +258,9 @@ export default {
 
                         quoted: false,
 
-                        thumbnail:
-                            user.displayAvatarURL({
-                                dynamic: true
-                            }),
+                        thumbnail: user.displayAvatarURL({
+                            dynamic: true,
+                        }),
 
                         userId: user.id,
                     },
@@ -250,18 +272,15 @@ export default {
                 );
             }
 
-            /*
-             * ============================
-             * SERVER COUNTERS
-             * ============================
-             */
+            // =====================================================
+            // SERVER COUNTERS
+            // =====================================================
 
             try {
-                const counters =
-                    await getServerCounters(
-                        member.client,
-                        guild.id
-                    );
+                const counters = await getServerCounters(
+                    member.client,
+                    guild.id
+                );
 
                 for (const counter of counters) {
                     if (
@@ -284,30 +303,24 @@ export default {
                 );
             }
 
-            /*
-             * ============================
-             * BIRTHDAY CLEANUP
-             * ============================
-             */
+            // =====================================================
+            // BACK UP BIRTHDAY
+            // =====================================================
 
             try {
-                const birthdays =
-                    await getGuildBirthdays(
-                        member.client,
-                        guild.id
-                    );
+                const birthdays = await getGuildBirthdays(
+                    member.client,
+                    guild.id
+                );
 
-                if (birthdays[user.id]) {
+                if (birthdays?.[user.id]) {
                     const backupKey =
                         `guild:${guild.id}:birthdays:left`;
 
                     const backup =
-                        (await member.client.db.get(
-                            backupKey
-                        )) || {};
+                        (await member.client.db.get(backupKey)) || {};
 
-                    backup[user.id] =
-                        birthdays[user.id];
+                    backup[user.id] = birthdays[user.id];
 
                     await member.client.db.set(
                         backupKey,
@@ -331,11 +344,9 @@ export default {
                 );
             }
 
-            /*
-             * ============================
-             * APPLICATION CLEANUP
-             * ============================
-             */
+            // =====================================================
+            // APPLICATION CLEANUP
+            // =====================================================
 
             try {
                 const userApplications =
@@ -369,11 +380,9 @@ export default {
                 );
             }
 
-            /*
-             * ============================
-             * LEVELING CLEANUP
-             * ============================
-             */
+            // =====================================================
+            // LEVELING CLEANUP
+            // =====================================================
 
             try {
                 await deleteUserLevelData(
@@ -387,16 +396,15 @@ export default {
                 );
             } catch (error) {
                 logger.debug(
-                    'Error handling leveling data:',
+                    'Error handling leveling data on member leave:',
                     error
                 );
             }
-
         } catch (error) {
             logger.error(
                 'Error in guildMemberRemove event:',
                 error
             );
         }
-    }
+    },
 };
