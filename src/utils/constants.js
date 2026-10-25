@@ -7,7 +7,6 @@ export const DEFAULT_GUILD_CONFIG = {
   adminRole: null,
   welcomeChannel: null,
   autoRole: null,
-
   logging: {
     enabled: false,
 
