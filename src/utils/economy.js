@@ -5,7 +5,7 @@ import { BotConfig } from '../config/bot.js';
 import { normalizeEconomyData } from './schemas.js';
 import { logger } from './logger.js';
 import { validateDiscordId, validateNumber } from './validation.js';
-import { DEFAULT_ECONOMY_DATA } from './constants.js';
+import { DEFAULT_ECONOMY_DATA } from '../config/defaults/economy.js';
 import { createError, ErrorTypes, wrapServiceBoundary } from './errorHandler.js';
 
 const ECONOMY_CONFIG = BotConfig.economy || {};
