@@ -4,7 +4,6 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { Collection } from 'discord.js';
 
 import { logger } from '../../utils/logger.js';
-
 import botConfig from '../../config/bot.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,14 +25,16 @@ const PRIORITY_COMMANDS = new Set([
 function getSubcommandInfo(commandData) {
   const subcommands = [];
 
-  if (commandData.options) {
+  if (commandData?.options) {
     for (const option of commandData.options) {
       if (option.type === 1) {
         subcommands.push(option.name);
       } else if (option.type === 2 && option.options) {
         for (const subOption of option.options) {
           if (subOption.type === 1) {
-            subcommands.push(`${option.name}/${subOption.name}`);
+            subcommands.push(
+              `${option.name}/${subOption.name}`,
+            );
           }
         }
       }
@@ -44,7 +45,9 @@ function getSubcommandInfo(commandData) {
 }
 
 async function getAllFiles(directory, fileList = []) {
-  const files = await fs.readdir(directory, { withFileTypes: true });
+  const files = await fs.readdir(directory, {
+    withFileTypes: true,
+  });
 
   for (const file of files) {
     const filePath = path.join(directory, file.name);
@@ -66,10 +69,16 @@ async function getAllFiles(directory, fileList = []) {
 export async function loadCommands(client) {
   client.commands = new Collection();
 
-  const commandsPath = path.join(__dirname, '../../commands');
+  const commandsPath = path.join(
+    __dirname,
+    '../../commands',
+  );
+
   const commandFiles = await getAllFiles(commandsPath);
 
-  logger.info(`Found ${commandFiles.length} command files to load`);
+  logger.info(
+    `Found ${commandFiles.length} command files to load`,
+  );
 
   const uniqueCommandNames = new Set();
 
@@ -84,16 +93,34 @@ export async function loadCommands(client) {
         pathToFileURL(filePath).href
       );
 
-      const command = commandModule.default || commandModule;
+      const command =
+        commandModule.default || commandModule;
 
       /*
-       * Prefix-only commands do not need Discord slash-command
-       * data. They only need an execute function and a name.
+       * PREFIX-ONLY COMMAND
+       *
+       * Prefix-only commands do not need Discord slash
+       * command data. They only need:
+       *
+       * name
+       * execute
+       *
+       * Example:
+       *
+       * export default {
+       *   name: 'antinuke',
+       *   prefixOnly: true,
+       *   execute(message, args) {}
+       * };
        */
-      if (command.prefixOnly) {
-        if (!command.name || typeof command.execute !== 'function') {
+
+      if (command.prefixOnly === true) {
+        if (
+          !command.name ||
+          typeof command.execute !== 'function'
+        ) {
           logger.warn(
-            `Prefix-only command at ${normalizedPath} is missing required "name" or "execute" property.`
+            `Prefix-only command at ${normalizedPath} is missing required "name" or "execute" property.`,
           );
 
           continue;
@@ -102,37 +129,56 @@ export async function loadCommands(client) {
         command.category = category;
         command.filePath = normalizedPath;
 
-        const primaryCommandName = command.name.toLowerCase();
+        const primaryCommandName =
+          String(command.name).toLowerCase();
 
-        if (!uniqueCommandNames.has(primaryCommandName)) {
+        if (
+          !uniqueCommandNames.has(primaryCommandName)
+        ) {
           uniqueCommandNames.add(primaryCommandName);
 
-          client.commands.set(primaryCommandName, command);
+          client.commands.set(
+            primaryCommandName,
+            command,
+          );
+        }
 
-          if (Array.isArray(command.aliases)) {
-            for (const alias of command.aliases) {
-              const normalizedAlias = String(alias).toLowerCase();
+        /*
+         * Register aliases with the prefix command
+         * collection too.
+         */
+        if (Array.isArray(command.aliases)) {
+          for (const alias of command.aliases) {
+            const normalizedAlias =
+              String(alias).toLowerCase();
 
-              if (!client.commands.has(normalizedAlias)) {
-                client.commands.set(normalizedAlias, command);
-              }
+            if (
+              !client.commands.has(normalizedAlias)
+            ) {
+              client.commands.set(
+                normalizedAlias,
+                command,
+              );
             }
           }
         }
 
         logger.info(
-          `Loaded prefix-only command: ${primaryCommandName} from ${normalizedPath} (category: ${category})`
+          `Loaded prefix-only command: ${primaryCommandName} from ${normalizedPath} (category: ${category})`,
         );
 
         continue;
       }
 
       /*
-       * Normal commands still require Discord command data.
+       * NORMAL SLASH/PREFIX COMMAND
        */
-      if (!command.data || !command.execute) {
+      if (
+        !command.data ||
+        typeof command.execute !== 'function'
+      ) {
         logger.warn(
-          `Command at ${normalizedPath} is missing required "data" or "execute" property.`
+          `Command at ${normalizedPath} is missing required "data" or "execute" property.`,
         );
 
         continue;
@@ -141,65 +187,86 @@ export async function loadCommands(client) {
       command.category = category;
       command.filePath = normalizedPath;
 
-      const primaryCommandName = command.data.name;
+      const primaryCommandName =
+        command.data.name.toLowerCase();
 
-      if (!uniqueCommandNames.has(primaryCommandName)) {
+      if (
+        !uniqueCommandNames.has(primaryCommandName)
+      ) {
         uniqueCommandNames.add(primaryCommandName);
 
-        client.commands.set(primaryCommandName, command);
+        client.commands.set(
+          primaryCommandName,
+          command,
+        );
+      }
 
-        if (Array.isArray(command.aliases)) {
-          for (const alias of command.aliases) {
-            const normalizedAlias = String(alias).toLowerCase();
+      /*
+       * Register aliases.
+       */
+      if (Array.isArray(command.aliases)) {
+        for (const alias of command.aliases) {
+          const normalizedAlias =
+            String(alias).toLowerCase();
 
-            if (!client.commands.has(normalizedAlias)) {
-              client.commands.set(normalizedAlias, command);
-            }
+          if (
+            !client.commands.has(normalizedAlias)
+          ) {
+            client.commands.set(
+              normalizedAlias,
+              command,
+            );
           }
         }
       }
 
-      const subcommands = getSubcommandInfo(
-        command.data.toJSON()
-      );
+      const commandJson =
+        typeof command.data.toJSON === 'function'
+          ? command.data.toJSON()
+          : command.data;
+
+      const subcommands =
+        getSubcommandInfo(commandJson);
 
       logger.info(
-        `Loaded command: ${primaryCommandName} from ${normalizedPath} (category: ${category})`
+        `Loaded command: ${primaryCommandName} from ${normalizedPath} (category: ${category})`,
       );
 
       if (subcommands.length > 0) {
         logger.info(
-          ` - Subcommands: ${subcommands.join(', ')}`
+          ` - Subcommands: ${subcommands.join(', ')}`,
         );
       }
     } catch (error) {
       logger.error(
-        `<:warning:1562130172004540439> FAILED TO LOAD COMMAND: ${normalizedPath}`
+        `<:warning:1562130172004540439> FAILED TO LOAD COMMAND: ${normalizedPath}`,
       );
 
       logger.error(
-        `Error name: ${error?.name || 'Unknown error'}`
+        `Error name: ${error?.name || 'Unknown'}`,
       );
 
       logger.error(
-        `Error message: ${error?.message || 'Unknown error'}`
+        `Error message: ${
+          error?.message || 'Unknown error'
+        }`,
       );
 
       logger.error(
-        error?.stack || String(error)
+        error?.stack || String(error),
       );
     }
   }
 
   /*
-   * Only commands that actually have Discord command data
-   * participate in slash-command/subcommand statistics.
+   * Only normal commands with Discord data count
+   * toward slash-command subcommand statistics.
    */
   const commandsWithSubcommands = Array.from(
-    client.commands.values()
+    client.commands.values(),
   ).filter((cmd) => {
     if (
-      cmd.prefixOnly ||
+      cmd.prefixOnly === true ||
       !cmd.data ||
       typeof cmd.data.toJSON !== 'function'
     ) {
@@ -207,7 +274,7 @@ export async function loadCommands(client) {
     }
 
     const subcommands = getSubcommandInfo(
-      cmd.data.toJSON()
+      cmd.data.toJSON(),
     );
 
     return subcommands.length > 0;
@@ -217,28 +284,46 @@ export async function loadCommands(client) {
     commandsWithSubcommands.reduce(
       (total, cmd) =>
         total +
-        getSubcommandInfo(cmd.data.toJSON()).length,
-      0
+        getSubcommandInfo(
+          cmd.data.toJSON(),
+        ).length,
+      0,
     );
 
+  /*
+   * Count unique actual command names rather than
+   * aliases.
+   */
   const uniqueCommands = new Set();
 
-  for (const [name, command] of client.commands.entries()) {
-    if (command.prefixOnly) {
-      uniqueCommands.add(command.name);
+  for (const command of client.commands.values()) {
+    if (command.prefixOnly === true) {
+      uniqueCommands.add(
+        String(command.name).toLowerCase(),
+      );
+
       continue;
     }
 
-    if (command.data && command.data.name) {
-      uniqueCommands.add(command.data.name);
+    if (command.data?.name) {
+      uniqueCommands.add(
+        command.data.name.toLowerCase(),
+      );
     }
   }
 
-  logger.info(`Loaded ${uniqueCommands.size} commands`);
+  logger.info(
+    `Commands loaded: ${uniqueCommands.size}`,
+  );
 
   return client.commands;
 }
 
+/*
+ * Build the slash-command payload.
+ *
+ * PREFIX-ONLY COMMANDS ARE COMPLETELY EXCLUDED.
+ */
 function collectCommandPayloads(client) {
   const commands = [];
   let totalSubcommands = 0;
@@ -247,11 +332,12 @@ function collectCommandPayloads(client) {
 
   for (const command of client.commands.values()) {
     /*
-     * PREFIX-ONLY COMMANDS ARE NEVER REGISTERED WITH DISCORD.
+     * This is what makes a command truly
+     * prefix-only.
      */
     if (command.prefixOnly === true) {
       logger.debug(
-        `Skipping prefix-only command from slash registration: ${command.name}`
+        `Skipping prefix-only command from slash registration: ${command.name}`,
       );
 
       continue;
@@ -262,7 +348,9 @@ function collectCommandPayloads(client) {
       typeof command.data.toJSON !== 'function'
     ) {
       logger.warn(
-        `Command missing data or toJSON method: ${command.name || 'unknown'}`
+        `Command missing data or toJSON method: ${
+          command.name || 'unknown'
+        }`,
       );
 
       continue;
@@ -272,7 +360,7 @@ function collectCommandPayloads(client) {
 
     if (registeredNames.has(commandName)) {
       logger.debug(
-        `Skipping duplicate command: ${commandName}`
+        `Skipping duplicate command: ${commandName}`,
       );
 
       continue;
@@ -280,7 +368,8 @@ function collectCommandPayloads(client) {
 
     registeredNames.add(commandName);
 
-    const commandJson = command.data.toJSON();
+    const commandJson =
+      command.data.toJSON();
 
     commands.push(commandJson);
 
@@ -298,9 +387,12 @@ function validateCommands(commands) {
   const validationErrors = [];
 
   for (const cmd of commands) {
-    if (cmd.name && cmd.name.length > 32) {
+    if (
+      cmd.name &&
+      cmd.name.length > 32
+    ) {
       validationErrors.push(
-        `Command ${cmd.name} has name longer than 32 chars: "${cmd.name}" (${cmd.name.length} chars)`
+        `Command ${cmd.name} has name longer than 32 chars: "${cmd.name}" (${cmd.name.length} chars)`,
       );
     }
 
@@ -309,7 +401,7 @@ function validateCommands(commands) {
       cmd.description.length > 110
     ) {
       validationErrors.push(
-        `Command ${cmd.name} has description longer than 110 chars: "${cmd.description}" (${cmd.description.length} chars)`
+        `Command ${cmd.name} has description longer than 110 chars: "${cmd.description}" (${cmd.description.length} chars)`,
       );
     }
 
@@ -323,7 +415,7 @@ function validateCommands(commands) {
         option.name.length > 32
       ) {
         validationErrors.push(
-          `Command ${cmd.name} option ${option.name} has name longer than 32 chars: "${option.name}" (${option.name.length} chars)`
+          `Command ${cmd.name} option ${option.name} has name longer than 32 chars: "${option.name}" (${option.name.length} chars)`,
         );
       }
 
@@ -332,7 +424,7 @@ function validateCommands(commands) {
         option.description.length > 110
       ) {
         validationErrors.push(
-          `Command ${cmd.name} option ${option.name} has description longer than 110 chars: "${option.description}" (${option.description.length} chars)`
+          `Command ${cmd.name} option ${option.name} has description longer than 110 chars: "${option.description}" (${option.description.length} chars)`,
         );
       }
 
@@ -343,113 +435,221 @@ function validateCommands(commands) {
             choice.name.length > 110
           ) {
             validationErrors.push(
-              `Command ${cmd.name} choice ${choice.name} has name longer than 110 chars`
+              `Command ${cmd.name} option ${option.name} choice ${choice.name} has name longer than 110 chars: "${choice.name}" (${choice.name.length} chars)`,
+            );
+          }
+
+          if (
+            choice.value &&
+            String(choice.value).length > 100
+          ) {
+            validationErrors.push(
+              `Command ${cmd.name} option ${option.name} choice ${choice.name} has value longer than 100 chars: "${choice.value}" (${String(choice.value).length} chars)`,
             );
           }
         }
       }
 
-      if (option.options) {
-        for (const subOption of option.options) {
-          if (
-            subOption.name &&
-            subOption.name.length > 32
-          ) {
-            validationErrors.push(
-              `Command ${cmd.name} subcommand ${subOption.name} has name longer than 32 chars`
-            );
-          }
+      if (!option.options) {
+        continue;
+      }
 
-          if (
-            subOption.description &&
-            subOption.description.length > 110
-          ) {
-            validationErrors.push(
-              `Command ${cmd.name} subcommand ${subOption.name} has description longer than 110 chars`
-            );
-          }
+      for (const subOption of option.options) {
+        if (
+          subOption.name &&
+          subOption.name.length > 32
+        ) {
+          validationErrors.push(
+            `Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has name longer than 32 chars: "${subOption.name}"`,
+          );
+        }
+
+        if (
+          subOption.description &&
+          subOption.description.length > 110
+        ) {
+          validationErrors.push(
+            `Command ${cmd.name} subcommand ${option.name} option ${subOption.name} has description longer than 110 chars`,
+          );
         }
       }
     }
   }
-
-  return validationErrors;
-}
-
-export function getSlashCommands(client) {
-  const { commands, totalSubcommands } =
-    collectCommandPayloads(client);
-
-  const validationErrors =
-    validateCommands(commands);
 
   if (validationErrors.length > 0) {
-    for (const error of validationErrors) {
-      logger.warn(error);
-    }
-  }
-
-  if (
-    commands.length >= COMMAND_COUNT_WARN_THRESHOLD
-  ) {
-    logger.warn(
-      `Command count (${commands.length}) is near Discord's ${MAX_COMMANDS} global command limit`
-    );
-  }
-
-  if (commands.length > MAX_COMMANDS) {
-    logger.warn(
-      `Command count (${commands.length}) exceeds Discord limit (${MAX_COMMANDS}).`
+    logger.error(
+      'Command validation failed. Errors:',
     );
 
-    /*
-     * Priority commands are kept first, while prefix-only
-     * commands have already been removed from this list.
-     */
-    const priority = [];
-    const normal = [];
+    validationErrors.forEach((error) =>
+      logger.error(` - ${error}`),
+    );
 
-    for (const command of commands) {
-      if (PRIORITY_COMMANDS.has(command.name)) {
-        priority.push(command);
-      } else {
-        normal.push(command);
-      }
-    }
-
-    const limitedCommands = [
-      ...priority,
-      ...normal,
-    ].slice(0, MAX_COMMANDS);
-
-    const excluded = commands
-      .filter(
-        (command) =>
-          !limitedCommands.some(
-            (included) =>
-              included.name === command.name
-          )
-      )
-      .map((command) => command.name);
-
-    if (excluded.length > 0) {
-      logger.warn(
-        `Commands excluded from global registration due to Discord's ${MAX_COMMANDS}-command limit: ${excluded.join(', ')}`
-      );
-    }
-
-    return limitedCommands;
+    throw new Error(
+      `Command validation failed with ${validationErrors.length} errors`,
+    );
   }
-
-  return commands;
 }
 
-export function getCommandPayloads(client) {
-  return collectCommandPayloads(client);
+function prepareCommandsForRegistration(commands) {
+  if (
+    commands.length >=
+    COMMAND_COUNT_WARN_THRESHOLD
+  ) {
+    logger.warn(
+      `Command count (${commands.length}) is near Discord's ${MAX_COMMANDS} global command limit`,
+    );
+  }
+
+  if (commands.length <= MAX_COMMANDS) {
+    return commands;
+  }
+
+  logger.warn(
+    `Command count (${commands.length}) exceeds Discord limit (${MAX_COMMANDS}).`,
+  );
+
+  const priorityCommands = [];
+  const normalCommands = [];
+
+  for (const command of commands) {
+    if (
+      PRIORITY_COMMANDS.has(command.name)
+    ) {
+      priorityCommands.push(command);
+    } else {
+      normalCommands.push(command);
+    }
+  }
+
+  const selected = [
+    ...priorityCommands,
+    ...normalCommands,
+  ].slice(0, MAX_COMMANDS);
+
+  const selectedNames = new Set(
+    selected.map((command) => command.name),
+  );
+
+  const excluded = commands.filter(
+    (command) =>
+      !selectedNames.has(command.name),
+  );
+
+  if (excluded.length > 0) {
+    logger.warn(
+      `Commands excluded from global registration due to Discord's ${MAX_COMMANDS}-command limit: ${excluded
+        .map((command) => command.name)
+        .join(', ')}`,
+    );
+  }
+
+  return selected;
+}
+
+async function registerGlobalCommands(
+  client,
+  clientId,
+  commands,
+  totalSubcommands,
+) {
+  if (!clientId) {
+    throw new Error(
+      'CLIENT_ID is required for slash command registration',
+    );
+  }
+
+  if (!client.rest) {
+    throw new Error(
+      'Discord REST client is not available for slash command registration',
+    );
+  }
+
+  logger.info(
+    `Preparing to register ${
+      totalSubcommands + commands.length
+    } commands globally`,
+  );
+
+  logger.info(
+    'Validating commands before registration...',
+  );
+
+  validateCommands(commands);
+
+  logger.info(
+    'Command validation passed',
+  );
+
+  const commandsToRegister =
+    prepareCommandsForRegistration(
+      commands,
+    );
+
+  if (
+    botConfig.commands?.deleteCommands
+  ) {
+    logger.info(
+      'Clearing existing global commands before registration...',
+    );
+
+    await client.rest.put(
+      `/applications/${clientId}/commands`,
+      {
+        body: [],
+      },
+    );
+  }
+
+  logger.info(
+    `Registering ${commandsToRegister.length} global commands...`,
+  );
+
+  await client.rest.put(
+    `/applications/${clientId}/commands`,
+    {
+      body: commandsToRegister,
+    },
+  );
+
+  logger.info(
+    `Successfully registered ${commandsToRegister.length} global commands`,
+  );
+
+  logger.info(
+    'Global commands may take up to an hour to appear in all servers on first deploy',
+  );
+}
+
+export async function registerCommands(
+  client,
+  options = {},
+) {
+  const { clientId = null } = options;
+
+  try {
+    const {
+      commands,
+      totalSubcommands,
+    } = collectCommandPayloads(client);
+
+    await registerGlobalCommands(
+      client,
+      clientId,
+      commands,
+      totalSubcommands,
+    );
+  } catch (error) {
+    logger.error(
+      'Failed to register global commands:',
+      error,
+    );
+
+    throw error;
+  }
 }
 
 export default {
   loadCommands,
-  getSlashCommands,
-  getCommandPayloads,
+  registerCommands,
 };
