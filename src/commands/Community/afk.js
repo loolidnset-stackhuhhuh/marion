@@ -2,6 +2,8 @@ import { EmbedBuilder } from 'discord.js';
 
 export const afkUsers = new Map();
 
+const APPROVE_EMOJI = '<:approve:1562121487165558947>';
+
 export default {
   name: 'afk',
   aliases: [],
@@ -15,13 +17,15 @@ export default {
 
     const key = `${message.guild.id}:${message.author.id}`;
 
-    // Remove AFK if already AFK
+    /*
+     * If the user is already AFK, remove their AFK status.
+     */
     if (afkUsers.has(key)) {
       afkUsers.delete(key);
 
       const embed = new EmbedBuilder()
         .setDescription(
-          `👋 ${message.author}: Your AFK status has been removed.`
+          `${APPROVE_EMOJI} ${message.author}: Your AFK status has been removed.`
         );
 
       return message.channel.send({
@@ -29,7 +33,9 @@ export default {
       });
     }
 
-    // Set AFK
+    /*
+     * Set AFK status.
+     */
     const reason = args.length
       ? args.join(' ')
       : 'AFK';
@@ -39,9 +45,17 @@ export default {
       timestamp: Date.now(),
     });
 
+    /*
+     * Bleed-style AFK confirmation.
+     *
+     * Example:
+     * <:approve:...> @user: You're now AFK with the status:
+     * AFK
+     */
     const embed = new EmbedBuilder()
       .setDescription(
-        `💤 ${message.author}: You're now AFK with the status: **${reason}**`
+        `${APPROVE_EMOJI} ${message.author}: You're now AFK with the status:\n` +
+        `**${reason}**`
       );
 
     return message.channel.send({
