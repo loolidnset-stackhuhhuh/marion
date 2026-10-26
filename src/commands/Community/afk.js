@@ -2,8 +2,6 @@ import { EmbedBuilder } from 'discord.js';
 
 export const afkUsers = new Map();
 
-const APPROVE_EMOJI = '<:approve:1562121487165558947>';
-
 export default {
   name: 'afk',
   aliases: [],
@@ -18,24 +16,15 @@ export default {
     const key = `${message.guild.id}:${message.author.id}`;
 
     /*
-     * If the user is already AFK, remove their AFK status.
+     * If already AFK, do not manually remove it here.
+     * Sending a normal message will be handled by messageCreate
+     * and will trigger the "Welcome back" message.
      */
+
     if (afkUsers.has(key)) {
-      afkUsers.delete(key);
-
-      const embed = new EmbedBuilder()
-        .setDescription(
-          `${APPROVE_EMOJI} ${message.author}: Your AFK status has been removed.`
-        );
-
-      return message.channel.send({
-        embeds: [embed],
-      });
+      return;
     }
 
-    /*
-     * Set AFK status.
-     */
     const reason = args.length
       ? args.join(' ')
       : 'AFK';
@@ -45,17 +34,10 @@ export default {
       timestamp: Date.now(),
     });
 
-    /*
-     * Bleed-style AFK confirmation.
-     *
-     * Example:
-     * <:approve:...> @user: You're now AFK with the status:
-     * AFK
-     */
     const embed = new EmbedBuilder()
+      .setColor(0x57F287)
       .setDescription(
-        `${APPROVE_EMOJI} ${message.author}: You're now AFK with the status:\n` +
-        `**${reason}**`
+        `<:approve:1562121487165558947> ${message.author}: You're now AFK with the status: **${reason}**`
       );
 
     return message.channel.send({
