@@ -6,6 +6,8 @@ import {
   getLevelingConfig,
   getUserLevelData,
 } from '../services/leveling/leveling.js';
+
+import { getGuildConfig } from '../services/config/guildConfig.js';
 import { addXp } from '../services/leveling/xpSystem.js';
 import { checkRateLimit } from '../utils/rateLimiter.js';
 import { parsePrefixCommand } from '../utils/prefixParser.js';
