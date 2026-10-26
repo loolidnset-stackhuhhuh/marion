@@ -94,7 +94,7 @@ async function handleAFK(message) {
           embeds: [
             createEmbed({
               description: `👋 ${message.author}: Welcome back, you were away for **${timeText}**`,
-              color: 'info',
+              color: '#2E2E30',
             }),
           ],
         })
