@@ -1,3 +1,5 @@
+import { EmbedBuilder } from 'discord.js';
+
 export const afkUsers = new Map();
 
 export default {
@@ -13,34 +15,35 @@ export default {
 
     const key = `${message.guild.id}:${message.author.id}`;
 
-    // If already AFK, remove AFK
+    // Remove AFK if the user is already AFK
     if (afkUsers.has(key)) {
       afkUsers.delete(key);
 
+      const embed = new EmbedBuilder()
+        .setDescription(
+          `👋 ${message.author}: Your AFK status has been removed.`
+        );
+
       return message.channel.send({
-        embeds: [
-          {
-            description: `👋 ${message.author}: Your AFK status has been removed.`,
-          },
-        ],
+        embeds: [embed],
       });
     }
 
-    const reason = args.length
-      ? args.join(' ')
-      : 'AFK';
+    // Set AFK
+    const reason = args.length ? args.join(' ') : 'AFK';
 
     afkUsers.set(key, {
       reason,
       timestamp: Date.now(),
     });
 
+    const embed = new EmbedBuilder()
+      .setDescription(
+        `💤 ${message.author}: You're now AFK with the status: **${reason}**`
+      );
+
     return message.channel.send({
-      embeds: [
-        {
-          description: `💤 ${message.author}: You're now AFK with the status: **${reason}**`,
-        },
-      ],
+      embeds: [embed],
     });
   },
 };
