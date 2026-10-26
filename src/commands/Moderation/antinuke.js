@@ -1,4 +1,8 @@
-import { PermissionFlagsBits, ChannelType } from 'discord.js';
+import {
+  PermissionFlagsBits,
+  ChannelType,
+  EmbedBuilder,
+} from 'discord.js';
 import {
   getGuildConfig,
   patchGuildConfig,
@@ -6,6 +10,7 @@ import {
 export default {
   name: 'antinuke',
   aliases: ['anti-nuke'],
+  prefixOnly: true,
   category: 'Moderation',
   description: 'Configure Lovelorn Anti-Nuke protection.',
   usage: ',antinuke <enable|disable|status|log> [channel]',
@@ -17,7 +22,7 @@ export default {
       );
     }
     if (
-      !message.member?.permissions?.has(
+      !message.member?.permissions.has(
         PermissionFlagsBits.ManageGuild
       )
     ) {
@@ -25,7 +30,7 @@ export default {
         'You need **Manage Server** permission to use Anti-Nuke.'
       );
     }
-    const subcommand = args?.[0]?.toLowerCase();
+    const subcommand = args[0]?.toLowerCase();
     if (!subcommand) {
       return message.reply(
         [
@@ -35,19 +40,14 @@ export default {
           '` ,antinuke disable` — Disable Anti-Nuke',
           '` ,antinuke status` — View Anti-Nuke status',
           '` ,antinuke log #channel` — Set the Anti-Nuke log channel',
-        ]
-          .join('\n')
-          .replace(/` ,/g, '`,')
+        ].join('\n').replace(/` ,/g, '`,')
       );
     }
     try {
-      // =========================
-      // ENABLE
-      // =========================
       if (subcommand === 'enable') {
         const botMember = guild.members.me;
         if (
-          !botMember?.permissions?.has(
+          !botMember?.permissions.has(
             PermissionFlagsBits.ViewAuditLog
           )
         ) {
@@ -75,12 +75,9 @@ export default {
           }
         );
         return message.reply(
-          'Anti-Nuke protection has been **enabled**.'
+          '<:approve:1562121487165558947> Anti-Nuke protection has been **enabled**.'
         );
       }
-      // =========================
-      // DISABLE
-      // =========================
       if (subcommand === 'disable') {
         const config = await getGuildConfig(
           guild.client,
@@ -102,24 +99,21 @@ export default {
           }
         );
         return message.reply(
-          'Anti-Nuke protection has been **disabled**.'
+          '<:warning:1562130172004540439> Anti-Nuke protection has been **disabled**.'
         );
       }
-      // =========================
-      // LOG
-      // =========================
       if (subcommand === 'log') {
         const channel =
           message.mentions.channels.first() ||
-          guild.channels.cache.get(args?.[1]);
+          guild.channels.cache.get(args[1]);
         if (!channel) {
           return message.reply(
-            'Please provide a valid text channel.\nExample: `,antinuke log #antinuke-logs`'
+            '<:deny:1562121610813513871> Please mention a text channel.\nExample: `,antinuke log #anti-nuke-logs`'
           );
         }
         if (channel.type !== ChannelType.GuildText) {
           return message.reply(
-            'The Anti-Nuke log channel must be a **text channel**.'
+            '<:deny:1562121610813513871> Anti-Nuke logs must use a text channel.'
           );
         }
         const config = await getGuildConfig(
@@ -142,12 +136,9 @@ export default {
           }
         );
         return message.reply(
-          `Anti-Nuke logs will now be sent to ${channel}.`
+          `<:approve:1562121487165558947> Anti-Nuke logs will now be sent to ${channel}.`
         );
       }
-      // =========================
-      // STATUS
-      // =========================
       if (subcommand === 'status') {
         const config = await getGuildConfig(
           guild.client,
@@ -169,44 +160,39 @@ export default {
           .map(([key, name]) => {
             const enabled =
               antinuke.protections?.[key] === true;
-            return `${enabled ? 'ON' : 'OFF'} — ${name}`;
+            return `${enabled ? '<:approve:1562121487165558947>' : '<:deny:1562121610813513871>'} ${name}`;
           })
           .join('\n');
+        const embed = new EmbedBuilder()
+          .setTitle('LOVEL♡RN Anti-Nuke')
+          .setDescription(
+            [
+              `**Status:** ${
+                antinuke.enabled
+                  ? '<:approve:1562121487165558947> Enabled'
+                  : '<:deny:1562121610813513871> Disabled'
+              }`,
+              `**Punishment:** ${antinuke.punishment ?? 'ban'}`,
+              `**Log Channel:** ${
+                antinuke.logChannelId
+                  ? `<#${antinuke.logChannelId}>`
+                  : 'Not configured'
+              }`,
+              '',
+              '**Protections**',
+              protections,
+            ].join('\n')
+          )
+          .setTimestamp();
         return message.reply({
-          embeds: [
-            {
-              title: 'Lovelorn Anti-Nuke',
-              description: [
-                `**Status:** ${
-                  antinuke.enabled
-                    ? 'Enabled'
-                    : 'Disabled'
-                }`,
-                `**Punishment:** ${
-                  antinuke.punishment ?? 'ban'
-                }`,
-                `**Log Channel:** ${
-                  antinuke.logChannelId
-                    ? `<#${antinuke.logChannelId}>`
-                    : 'Not configured'
-                }`,
-                '',
-                '**Protections**',
-                protections,
-              ].join('\n'),
-              timestamp: new Date().toISOString(),
-            },
-          ],
+          embeds: [embed],
         });
       }
-      // =========================
-      // UNKNOWN SUBCOMMAND
-      // =========================
       return message.reply(
         [
-          `Unknown Anti-Nuke subcommand: \`${subcommand}\``,
+          '<:deny:1562121610813513871> Unknown Anti-Nuke option.',
           '',
-          '**Available subcommands:**',
+          'Use:',
           '`,antinuke enable`',
           '`,antinuke disable`',
           '`,antinuke status`',
@@ -219,7 +205,7 @@ export default {
         error
       );
       return message.reply(
-        'Anti-Nuke could not update the server configuration. Check the bot logs for the error.'
+        '<:deny:1562121610813513871> Anti-Nuke could not update the server configuration.'
       );
     }
   },
