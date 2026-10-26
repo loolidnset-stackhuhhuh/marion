@@ -15,7 +15,7 @@ export default {
 
     const key = `${message.guild.id}:${message.author.id}`;
 
-    // Remove AFK if the user is already AFK
+    // Remove AFK if already AFK
     if (afkUsers.has(key)) {
       afkUsers.delete(key);
 
@@ -30,7 +30,9 @@ export default {
     }
 
     // Set AFK
-    const reason = args.length ? args.join(' ') : 'AFK';
+    const reason = args.length
+      ? args.join(' ')
+      : 'AFK';
 
     afkUsers.set(key, {
       reason,
