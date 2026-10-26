@@ -1,7 +1,7 @@
 import {
+  EmbedBuilder,
   PermissionFlagsBits,
   ChannelType,
-  EmbedBuilder,
 } from 'discord.js';
 
 import {
@@ -9,78 +9,118 @@ import {
   patchGuildConfig,
 } from '../../services/config/guildConfig.js';
 
+const APPROVE_EMOJI = '<:approve:1562121487165558947>';
+const WARNING_EMOJI = '<:warning:1562130172004540439>';
+const DENY_EMOJI = '<:deny:1562121610813513871>';
+
+const PROTECTION_NAMES = [
+  ['ban', 'Mass Ban'],
+  ['kick', 'Mass Kick'],
+  ['channelDelete', 'Channel Delete'],
+  ['channelCreate', 'Channel Create'],
+  ['roleDelete', 'Role Delete'],
+  ['roleCreate', 'Role Create'],
+  ['webhook', 'Webhook'],
+  ['botAdd', 'Bot Add'],
+  ['guildUpdate', 'Server Update'],
+];
+
+function successEmbed(description) {
+  return new EmbedBuilder()
+    .setColor(0x57F287)
+    .setDescription(`${APPROVE_EMOJI} ${description}`);
+}
+
+function warningEmbed(description) {
+  return new EmbedBuilder()
+    .setColor(0xFEE75C)
+    .setDescription(`${WARNING_EMOJI} ${description}`);
+}
+
+function denyEmbed(description) {
+  return new EmbedBuilder()
+    .setColor(0xED4245)
+    .setDescription(`${DENY_EMOJI} ${description}`);
+}
+
+function helpEmbed() {
+  return new EmbedBuilder()
+    .setColor(0xFEE75C)
+    .setTitle('LOVEL♡RN Anti-Nuke')
+    .setDescription(
+      [
+        '**Anti-Nuke Commands**',
+        '',
+        '` ,antinuke enable` — Enable Anti-Nuke',
+        '` ,antinuke disable` — Disable Anti-Nuke',
+        '` ,antinuke status` — View Anti-Nuke status',
+        '` ,antinuke log #channel` — Set the log channel',
+      ].join('\n').replaceAll('` ,', '`,'))
+    );
+}
+
 export default {
   name: 'antinuke',
   aliases: ['anti-nuke'],
   prefixOnly: true,
-
   category: 'Moderation',
+  description: 'Configure LOVEL♡RN Anti-Nuke protection.',
+  usage: ',antinuke <enable|disable|status|log #channel>',
 
-  description: 'Configure Lovelorn Anti-Nuke protection.',
-
-  usage: ',antinuke <enable|disable|status|log> [channel]',
-
-  async execute(interaction, guildConfig, client) {
-    const guild = interaction.guild;
-
-    if (!guild) {
-      return interaction.reply(
-        'This command can only be used in a server.'
-      );
+  async execute(message, args, client) {
+    if (!message.guild) {
+      return message.channel.send({
+        embeds: [
+          denyEmbed('This command can only be used inside a server.'),
+        ],
+      });
     }
 
-    const member = interaction.member;
-
     if (
-      !member?.permissions?.has(
+      !message.member?.permissions?.has(
         PermissionFlagsBits.ManageGuild
       )
     ) {
-      return interaction.reply(
-        '<:deny:1562121610813513871> You need **Manage Server** permission to use Anti-Nuke.'
-      );
+      return message.channel.send({
+        embeds: [
+          denyEmbed(
+            'You need **Manage Server** permission to use Anti-Nuke.'
+          ),
+        ],
+      });
     }
 
-    const args = interaction._hoistedOptions?.map(
-      option => option.value
-    ) ?? [];
-
-    const subcommand = String(
-      args[0] ?? ''
-    ).toLowerCase();
+    const guild = message.guild;
+    const subcommand = args[0]?.toLowerCase();
 
     if (!subcommand) {
-      return interaction.reply(
-        [
-          '**LOVEL♡RN Anti-Nuke**',
-          '',
-          '`,antinuke enable` — Enable Anti-Nuke',
-          '`,antinuke disable` — Disable Anti-Nuke',
-          '`,antinuke status` — View Anti-Nuke status',
-          '`,antinuke log #channel` — Set the log channel',
-        ].join('\n')
-      );
+      return message.channel.send({
+        embeds: [helpEmbed()],
+      });
     }
 
     try {
-      const config =
-        guildConfig ??
-        await getGuildConfig(client, guild.id);
-
-      const current = config?.antinuke ?? {};
-
       if (subcommand === 'enable') {
-        const botMember = guild.members.me;
+        const botMember =
+          guild.members.me ??
+          await guild.members.fetch(client.user.id).catch(() => null);
 
         if (
           !botMember?.permissions?.has(
             PermissionFlagsBits.ViewAuditLog
           )
         ) {
-          return interaction.reply(
-            '<:deny:1562121610813513871> I need **View Audit Log** permission before Anti-Nuke can be enabled.'
-          );
+          return message.channel.send({
+            embeds: [
+              denyEmbed(
+                'I need **View Audit Log** permission before Anti-Nuke can be enabled.'
+              ),
+            ],
+          });
         }
+
+        const config = await getGuildConfig(client, guild.id);
+        const current = config?.antinuke ?? {};
 
         await patchGuildConfig(
           client,
@@ -93,16 +133,23 @@ export default {
           },
           {
             source: 'antinuke.enable',
-            userId: interaction.user.id,
+            userId: message.author.id,
           }
         );
 
-        return interaction.reply(
-          '<:approve:1562121487165558947> Anti-Nuke protection has been **enabled**.'
-        );
+        return message.channel.send({
+          embeds: [
+            successEmbed(
+              'Anti-Nuke protection has been **enabled**.'
+            ),
+          ],
+        });
       }
 
       if (subcommand === 'disable') {
+        const config = await getGuildConfig(client, guild.id);
+        const current = config?.antinuke ?? {};
+
         await patchGuildConfig(
           client,
           guild.id,
@@ -114,46 +161,53 @@ export default {
           },
           {
             source: 'antinuke.disable',
-            userId: interaction.user.id,
+            userId: message.author.id,
           }
         );
 
-        return interaction.reply(
-          '<:warning:1562130172004540439> Anti-Nuke protection has been **disabled**.'
-        );
+        return message.channel.send({
+          embeds: [
+            successEmbed(
+              'Anti-Nuke protection has been **disabled**.'
+            ),
+          ],
+        });
       }
 
       if (subcommand === 'log') {
-        const channelArg = args[1];
+        let channel = message.mentions.channels.first();
 
-        let channel = null;
-
-        if (channelArg) {
-          const mentionMatch =
-            String(channelArg).match(/^<#(\d+)>$/);
-
-          const channelId =
-            mentionMatch?.[1] ??
-            String(channelArg).replace(/\D/g, '');
-
-          if (channelId) {
-            channel =
-              guild.channels.cache.get(channelId) ??
-              await guild.channels.fetch(channelId).catch(() => null);
-          }
+        if (!channel && args[1]) {
+          channel =
+            guild.channels.cache.get(args[1]) ??
+            guild.channels.cache.find(
+              (cachedChannel) =>
+                cachedChannel.id === args[1].replace(/[<#>]/g, '')
+            );
         }
 
         if (!channel) {
-          return interaction.reply(
-            '<:deny:1562121610813513871> Please mention a text channel.\nExample: `,antinuke log #anti-nuke-logs`'
-          );
+          return message.channel.send({
+            embeds: [
+              warningEmbed(
+                'Please mention a text channel.\n\nExample: `,antinuke log #message-log`'
+              ),
+            ],
+          });
         }
 
         if (channel.type !== ChannelType.GuildText) {
-          return interaction.reply(
-            '<:deny:1562121610813513871> Anti-Nuke logs must use a text channel.'
-          );
+          return message.channel.send({
+            embeds: [
+              warningEmbed(
+                'The Anti-Nuke log channel must be a text channel.'
+              ),
+            ],
+          });
         }
+
+        const config = await getGuildConfig(client, guild.id);
+        const current = config?.antinuke ?? {};
 
         await patchGuildConfig(
           client,
@@ -166,53 +220,54 @@ export default {
           },
           {
             source: 'antinuke.log',
-            userId: interaction.user.id,
+            userId: message.author.id,
           }
         );
 
-        return interaction.reply(
-          `<:approve:1562121487165558947> Anti-Nuke logs will now be sent to ${channel}.`
-        );
+        return message.channel.send({
+          embeds: [
+            successEmbed(
+              `Anti-Nuke logs will now be sent to ${channel}.`
+            ),
+          ],
+        });
       }
 
       if (subcommand === 'status') {
-        const antinuke = current;
+        const config = await getGuildConfig(client, guild.id);
+        const antinuke = config?.antinuke ?? {};
 
-        const protectionNames = [
-          ['ban', 'Mass Ban'],
-          ['kick', 'Mass Kick'],
-          ['channelDelete', 'Channel Delete'],
-          ['channelCreate', 'Channel Create'],
-          ['roleDelete', 'Role Delete'],
-          ['roleCreate', 'Role Create'],
-          ['webhook', 'Webhook'],
-          ['botAdd', 'Bot Add'],
-          ['guildUpdate', 'Server Update'],
-        ];
-
-        const protections = protectionNames
+        const protections = PROTECTION_NAMES
           .map(([key, name]) => {
-            const enabled =
-              antinuke.protections?.[key] === true;
+            const enabled = Boolean(
+              antinuke.protections?.[key]
+            );
 
-            return `${
-              enabled
-                ? '<:approve:1562121487165558947>'
-                : '<:deny:1562121610813513871>'
-            } ${name}`;
+            return `${enabled ? 'ON' : 'OFF'} — ${name}`;
           })
           .join('\n');
 
+        const statusEmoji = antinuke.enabled
+          ? APPROVE_EMOJI
+          : DENY_EMOJI;
+
         const embed = new EmbedBuilder()
+          .setColor(
+            antinuke.enabled
+              ? 0x57F287
+              : 0xED4245
+          )
           .setTitle('LOVEL♡RN Anti-Nuke')
           .setDescription(
             [
-              `**Status:** ${
+              `${statusEmoji} **Status:** ${
                 antinuke.enabled
-                  ? '<:approve:1562121487165558947> Enabled'
-                  : '<:deny:1562121610813513871> Disabled'
+                  ? 'Enabled'
+                  : 'Disabled'
               }`,
-              `**Punishment:** ${antinuke.punishment ?? 'ban'}`,
+              `**Punishment:** ${
+                antinuke.punishment ?? 'ban'
+              }`,
               `**Log Channel:** ${
                 antinuke.logChannelId
                   ? `<#${antinuke.logChannelId}>`
@@ -225,31 +280,27 @@ export default {
           )
           .setTimestamp();
 
-        return interaction.reply({
+        return message.channel.send({
           embeds: [embed],
         });
       }
 
-      return interaction.reply(
-        [
-          '<:deny:1562121610813513871> Unknown Anti-Nuke option.',
-          '',
-          'Use:',
-          '`,antinuke enable`',
-          '`,antinuke disable`',
-          '`,antinuke status`',
-          '`,antinuke log #channel`',
-        ].join('\n')
-      );
+      return message.channel.send({
+        embeds: [helpEmbed()],
+      });
     } catch (error) {
       console.error(
-        `[Anti-Nuke] Error in guild ${guild.id}:`,
+        `Anti-Nuke command error in guild ${guild.id}:`,
         error
       );
 
-      return interaction.reply(
-        '<:deny:1562121610813513871> Anti-Nuke encountered an error while updating the server.'
-      );
+      return message.channel.send({
+        embeds: [
+          denyEmbed(
+            'Anti-Nuke could not update the server configuration. Check the bot logs for the error.'
+          ),
+        ],
+      });
     }
   },
 };
