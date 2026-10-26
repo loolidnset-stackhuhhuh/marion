@@ -1,18 +1,38 @@
 import { Events } from 'discord.js';
+
 import { afkUsers } from '../commands/Community/afk.js';
 import { logger } from '../utils/logger.js';
-import { getLevelingConfig, getUserLevelData } from '../services/leveling/leveling.js';
+import {
+  getLevelingConfig,
+  getUserLevelData,
+} from '../services/leveling/leveling.js';
 import { addXp } from '../services/leveling/xpSystem.js';
 import { checkRateLimit } from '../utils/rateLimiter.js';
 import { parsePrefixCommand } from '../utils/prefixParser.js';
-import { supportsPrefixExecution, executePrefixCommand, resolvePrefixAccessKey } from '../utils/messageAdapter.js';
-import { resolveCommandAlias, resolveSubcommandAlias } from '../config/commands/commandAliases.js';
+import {
+  supportsPrefixExecution,
+  executePrefixCommand,
+  resolvePrefixAccessKey,
+} from '../utils/messageAdapter.js';
+import {
+  resolveCommandAlias,
+  resolveSubcommandAlias,
+} from '../config/commands/commandAliases.js';
 import { getPrefixRestriction } from '../config/commands/prefixRestrictions.js';
-import { getGuildConfig } from '../services/config/guildConfig.js';
-import { getCommandPrefix, getBotMessage, isBotOwner, isCommandCategoryEnabled, isMaintenanceMode } from '../config/bot.js';
-import { enforceAbuseProtection, formatCooldownDuration } from '../utils/abuseProtection.js';
+import {
+  getCommandPrefix,
+  getBotMessage,
+  isBotOwner,
+  isCommandCategoryEnabled,
+  isMaintenanceMode,
+} from '../config/bot.js';
+import {
+  enforceAbuseProtection,
+  formatCooldownDuration,
+} from '../utils/abuseProtection.js';
 import { createEmbed } from '../utils/embeds.js';
 import { isCommandEnabled } from '../services/commandAccessService.js';
+
 import {
   getCountingGameConfig,
   saveCountingGameConfig,
@@ -25,15 +45,22 @@ const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
 
 export default {
   name: Events.MessageCreate,
+
   async execute(message, client) {
     try {
       if (message.author.bot || !message.guild) return;
 
-await handleAFK(message);
+      await handleAFK(message);
 
-      logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
+      logger.debug(
+        `Message received from ${message.author.tag}: ${message.content}`
+      );
 
-      const countingProcessed = await handleCountingGame(message, client);
+      const countingProcessed = await handleCountingGame(
+        message,
+        client
+      );
+
       if (countingProcessed) {
         return;
       }
@@ -42,82 +69,188 @@ await handleAFK(message);
 
       await handleLeveling(message, client);
     } catch (error) {
-      logger.error('Error in messageCreate event:', error);
+      logger.error(
+        'Error in messageCreate event:',
+        error
+      );
     }
-  }
+  },
 };
 
 async function handlePrefixCommand(message, client) {
   try {
-    const guildConfig = await getGuildConfig(client, message.guild.id);
-    const prefix = guildConfig?.prefix || getCommandPrefix();
-    const parsed = parsePrefixCommand(message.content, prefix);
-    
+    const guildConfig = await getGuildConfig(
+      client,
+      message.guild.id
+    );
+
+    const prefix =
+      guildConfig?.prefix || getCommandPrefix();
+
+    const parsed = parsePrefixCommand(
+      message.content,
+      prefix
+    );
+
     if (!parsed) {
-      return; 
+      return;
     }
 
     let { commandName, args } = parsed;
-    const musicPrefixShortcut = commandName.toLowerCase();
-    const MUSIC_PREFIX_SHORTCUTS = new Set(['leave', 'pause', 'resume', 'skip', 'stop', 'volume']);
-    if (MUSIC_PREFIX_SHORTCUTS.has(musicPrefixShortcut)) {
+
+    const musicPrefixShortcut =
+      commandName.toLowerCase();
+
+    const MUSIC_PREFIX_SHORTCUTS = new Set([
+      'leave',
+      'pause',
+      'resume',
+      'skip',
+      'stop',
+      'volume',
+    ]);
+
+    if (
+      MUSIC_PREFIX_SHORTCUTS.has(
+        musicPrefixShortcut
+      )
+    ) {
       commandName = 'music';
       args = [musicPrefixShortcut, ...args];
     }
 
-    logger.info(`Prefix command detected: ${commandName}, args: ${args.join(', ')}`);
+    logger.info(
+      `Prefix command detected: ${commandName}, args: ${args.join(', ')}`
+    );
 
-    const resolvedCommandName = resolveCommandAlias(commandName);
-    logger.info(`Resolved command name: ${resolvedCommandName}`);
-    const command = client.commands.get(resolvedCommandName);
+    const resolvedCommandName =
+      resolveCommandAlias(commandName);
+
+    logger.info(
+      `Resolved command name: ${resolvedCommandName}`
+    );
+
+    const command =
+      client.commands.get(resolvedCommandName);
 
     if (!command) {
-      logger.warn(`Command not found: ${resolvedCommandName}`);
-      return; 
-    }
-
-    if (isMaintenanceMode() && !isBotOwner(message.author.id)) {
-      await message.channel.send({
-        embeds: [createEmbed({
-          title: 'Maintenance Mode',
-          description: getBotMessage('maintenanceMode'),
-          color: 'warning',
-        })],
-      }).catch(() => {});
+      logger.warn(
+        `Command not found: ${resolvedCommandName}`
+      );
       return;
     }
 
-    if (!isCommandCategoryEnabled(command.category)) {
-      await message.channel.send({
-        embeds: [createEmbed({
-          title: 'Feature Disabled',
-          description: getBotMessage('commandDisabled'),
-          color: 'error',
-        })],
-      }).catch(() => {});
+    if (
+      isMaintenanceMode() &&
+      !isBotOwner(message.author.id)
+    ) {
+      await message.channel
+        .send({
+          embeds: [
+            createEmbed({
+              title: 'Maintenance Mode',
+              description:
+                getBotMessage('maintenanceMode'),
+              color: 'warning',
+            }),
+          ],
+        })
+        .catch(() => {});
+
       return;
     }
 
-    const restriction = getPrefixRestriction(command, args, resolveSubcommandAlias);
-    if (!supportsPrefixExecution(command) || restriction.blocked) {
-      if (restriction.blocked && restriction.reason) {
+    if (
+      !isCommandCategoryEnabled(
+        command.category
+      )
+    ) {
+      await message.channel
+        .send({
+          embeds: [
+            createEmbed({
+              title: 'Feature Disabled',
+              description:
+                getBotMessage('commandDisabled'),
+              color: 'error',
+            }),
+          ],
+        })
+        .catch(() => {});
+
+      return;
+    }
+
+    const restriction = getPrefixRestriction(
+      command,
+      args,
+      resolveSubcommandAlias
+    );
+
+    if (
+      !supportsPrefixExecution(command) ||
+      restriction.blocked
+    ) {
+      if (
+        restriction.blocked &&
+        restriction.reason
+      ) {
         const embed = createEmbed({
           title: 'Slash Command Only',
-          description: `${restriction.reason}\nUse \`/${resolvedCommandName}\` instead.`,
+          description:
+            `${restriction.reason}\nUse \`/${resolvedCommandName}\` instead.`,
           color: 'info',
         });
-        await message.channel.send({ embeds: [embed] }).catch(() => {});
+
+        await message.channel
+          .send({
+            embeds: [embed],
+          })
+          .catch(() => {});
       }
+
       return;
     }
 
-    if (!(await isCommandEnabled(client, message.guild.id, resolvePrefixAccessKey(command.data, args), command.category))) {
+    /*
+     * PREFIX-ONLY COMMAND FIX
+     *
+     * Prefix-only commands such as Anti-Nuke do not need
+     * Discord slash-command metadata.
+     *
+     * Normal commands continue using their command.data
+     * access key.
+     */
+    const accessKey = command.prefixOnly
+      ? command.name
+      : resolvePrefixAccessKey(
+          command.data,
+          args
+        );
+
+    if (
+      !(
+        await isCommandEnabled(
+          client,
+          message.guild.id,
+          accessKey,
+          command.category
+        )
+      )
+    ) {
       const embed = createEmbed({
         title: 'Command Disabled',
-        description: 'This command has been disabled for this server.',
+        description:
+          'This command has been disabled for this server.',
         color: 'error',
       });
-      await message.channel.send({ embeds: [embed] }).catch(() => {});
+
+      await message.channel
+        .send({
+          embeds: [embed],
+        })
+        .catch(() => {});
+
       return;
     }
 
@@ -125,125 +258,298 @@ async function handlePrefixCommand(message, client) {
       guildId: message.guild.id,
       user: message.author,
     };
-    const abuseProtection = await enforceAbuseProtection(
-      mockInteractionForProtection,
-      command,
-      resolvedCommandName,
-    );
+
+    const abuseProtection =
+      await enforceAbuseProtection(
+        mockInteractionForProtection,
+        command,
+        resolvedCommandName
+      );
+
     if (!abuseProtection.allowed) {
-      const formattedCooldown = formatCooldownDuration(abuseProtection.remainingMs);
+      const formattedCooldown =
+        formatCooldownDuration(
+          abuseProtection.remainingMs
+        );
+
       const embed = createEmbed({
         title: 'Command Cooldown',
-        description: `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
+        description:
+          `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
         color: 'error',
       });
-      await message.channel.send({ embeds: [embed] }).catch(() => {});
+
+      await message.channel
+        .send({
+          embeds: [embed],
+        })
+        .catch(() => {});
+
       return;
     }
 
-    logger.info(`Executing prefix command: ${prefix}${commandName} (resolved to ${resolvedCommandName}) by ${message.author.tag}`);
-    
-    await executePrefixCommand(command, message, args, client, prefix, guildConfig);
+    logger.info(
+      `Executing prefix command: ${prefix}${commandName} (resolved to ${resolvedCommandName}) by ${message.author.tag}`
+    );
+
+    /*
+     * Prefix-only commands intentionally do not need
+     * actual Discord slash-command data.
+     *
+     * The adapter still expects command.data, so provide
+     * minimal internal metadata only for execution.
+     *
+     * This DOES NOT register a slash command.
+     */
+    let commandForExecution = command;
+
+    if (
+      command.prefixOnly &&
+      !command.data
+    ) {
+      commandForExecution = {
+        ...command,
+        data: {
+          name: command.name,
+          options: [],
+        },
+      };
+    }
+
+    await executePrefixCommand(
+      commandForExecution,
+      message,
+      args,
+      client,
+      prefix,
+      guildConfig
+    );
   } catch (error) {
-    logger.error('Error handling prefix command:', error);
+    logger.error(
+      'Error handling prefix command:',
+      error
+    );
   }
 }
 
-async function handleCountingGame(message, client) {
+async function handleCountingGame(
+  message,
+  client
+) {
   try {
-    const config = await getCountingGameConfig(client, message.guild.id);
-    if (!config.enabled || !config.channelId || message.channel.id !== config.channelId) {
+    const config =
+      await getCountingGameConfig(
+        client,
+        message.guild.id
+      );
+
+    if (
+      !config.enabled ||
+      !config.channelId ||
+      message.channel.id !==
+        config.channelId
+    ) {
       return false;
     }
 
-    const content = message.content.trim();
-    const validCount = isValidCountingMessage(content, config);
-    const invalidAttempt = !validCount || message.author.id === config.lastUserId;
+    const content =
+      message.content.trim();
+
+    const validCount =
+      isValidCountingMessage(
+        content,
+        config
+      );
+
+    const invalidAttempt =
+      !validCount ||
+      message.author.id ===
+        config.lastUserId;
 
     if (invalidAttempt) {
       await message.delete().catch(() => {});
-      await saveCountingGameConfig(client, message.guild.id, {
-        ...config,
-        nextNumber: 1,
-        lastUserId: null,
-        currentStreak: 0,
-      });
 
-      const failureMessage = await message.channel.send(`❌ Count broken by <@${message.author.id}>. The sequence has been reset to **1**.`);
+      await saveCountingGameConfig(
+        client,
+        message.guild.id,
+        {
+          ...config,
+          nextNumber: 1,
+          lastUserId: null,
+          currentStreak: 0,
+        }
+      );
+
+      const failureMessage =
+        await message.channel.send(
+          `<:deny:1562121610813513871> Count broken by <@${message.author.id}>. The sequence has been reset to **1**.`
+        );
+
       setTimeout(() => {
-        failureMessage.delete().catch(() => {});
+        failureMessage
+          .delete()
+          .catch(() => {});
       }, 10000);
 
       return true;
     }
 
-    await recordCorrectCount(client, message.guild.id, message.author.id);
+    await recordCorrectCount(
+      client,
+      message.guild.id,
+      message.author.id
+    );
+
     return true;
   } catch (error) {
-    logger.error('Error handling counting game:', error);
+    logger.error(
+      'Error handling counting game:',
+      error
+    );
+
     return false;
   }
 }
 
-async function handleLeveling(message, client) {
+async function handleLeveling(
+  message,
+  client
+) {
   try {
-    const rateLimitKey = `xp-event:${message.guild.id}:${message.author.id}`;
-    const canProcess = await checkRateLimit(rateLimitKey, MESSAGE_XP_RATE_LIMIT_ATTEMPTS, MESSAGE_XP_RATE_LIMIT_WINDOW_MS);
+    const rateLimitKey =
+      `xp-event:${message.guild.id}:${message.author.id}`;
+
+    const canProcess =
+      await checkRateLimit(
+        rateLimitKey,
+        MESSAGE_XP_RATE_LIMIT_ATTEMPTS,
+        MESSAGE_XP_RATE_LIMIT_WINDOW_MS
+      );
+
     if (!canProcess) {
       return;
     }
 
-    const levelingConfig = await getLevelingConfig(client, message.guild.id);
-    
+    const levelingConfig =
+      await getLevelingConfig(
+        client,
+        message.guild.id
+      );
+
     if (!levelingConfig?.enabled) {
       return;
     }
 
-    if (levelingConfig.ignoredChannels?.includes(message.channel.id)) {
+    if (
+      levelingConfig.ignoredChannels?.includes(
+        message.channel.id
+      )
+    ) {
       return;
     }
 
-    if (levelingConfig.ignoredRoles?.length > 0) {
-      const member = await message.guild.members.fetch(message.author.id).catch(() => {
-        return null;
-      });
-      if (member && member.roles.cache.some(role => levelingConfig.ignoredRoles.includes(role.id))) {
+    if (
+      levelingConfig.ignoredRoles?.length > 0
+    ) {
+      const member =
+        await message.guild.members
+          .fetch(message.author.id)
+          .catch(() => null);
+
+      if (
+        member &&
+        member.roles.cache.some(
+          role =>
+            levelingConfig.ignoredRoles.includes(
+              role.id
+            )
+        )
+      ) {
         return;
       }
     }
 
-    if (levelingConfig.blacklistedUsers?.includes(message.author.id)) {
+    if (
+      levelingConfig.blacklistedUsers?.includes(
+        message.author.id
+      )
+    ) {
       return;
     }
 
-    if (!message.content || message.content.trim().length === 0) {
+    if (
+      !message.content ||
+      message.content.trim().length === 0
+    ) {
       return;
     }
 
-    const userData = await getUserLevelData(client, message.guild.id, message.author.id);
+    const userData =
+      await getUserLevelData(
+        client,
+        message.guild.id,
+        message.author.id
+      );
 
-    const cooldownTime = levelingConfig.xpCooldown || 60;
+    const cooldownTime =
+      levelingConfig.xpCooldown || 60;
+
     const now = Date.now();
-    const timeSinceLastMessage = now - (userData.lastMessage || 0);
 
-    if (timeSinceLastMessage < cooldownTime * 1000) {
+    const timeSinceLastMessage =
+      now - (userData.lastMessage || 0);
+
+    if (
+      timeSinceLastMessage <
+      cooldownTime * 1000
+    ) {
       return;
     }
 
-    const minXP = levelingConfig.xpRange?.min || levelingConfig.xpPerMessage?.min || 15;
-    const maxXP = levelingConfig.xpRange?.max || levelingConfig.xpPerMessage?.max || 25;
+    const minXP =
+      levelingConfig.xpRange?.min ||
+      levelingConfig.xpPerMessage?.min ||
+      15;
 
-    const safeMinXP = Math.max(1, minXP);
-    const safeMaxXP = Math.max(safeMinXP, maxXP);
+    const maxXP =
+      levelingConfig.xpRange?.max ||
+      levelingConfig.xpPerMessage?.max ||
+      25;
 
-    const xpToGive = Math.floor(Math.random() * (safeMaxXP - safeMinXP + 1)) + safeMinXP;
+    const safeMinXP =
+      Math.max(1, minXP);
+
+    const safeMaxXP =
+      Math.max(
+        safeMinXP,
+        maxXP
+      );
+
+    const xpToGive =
+      Math.floor(
+        Math.random() *
+          (safeMaxXP - safeMinXP + 1)
+      ) + safeMinXP;
 
     let finalXP = xpToGive;
-    if (levelingConfig.xpMultiplier && levelingConfig.xpMultiplier > 1) {
-      finalXP = Math.floor(finalXP * levelingConfig.xpMultiplier);
+
+    if (
+      levelingConfig.xpMultiplier &&
+      levelingConfig.xpMultiplier > 1
+    ) {
+      finalXP = Math.floor(
+        finalXP *
+          levelingConfig.xpMultiplier
+      );
     }
 
-    const result = await addXp(client, message.guild, message.member, finalXP);
+    const result =
+      await addXp(
+        client,
+        message.guild,
+        message.member,
+        finalXP
+      );
 
     if (result?.leveledUp) {
       logger.info(
@@ -251,52 +557,166 @@ async function handleLeveling(message, client) {
       );
     }
   } catch (error) {
-    logger.error('Error handling leveling for message:', error);
+    logger.error(
+      'Error handling leveling for message:',
+      error
+    );
   }
 }
+
 async function handleAFK(message) {
-    try {
-        const authorKey = `${message.guild.id}:${message.author.id}`;
+  try {
+    const authorKey =
+      `${message.guild.id}:${message.author.id}`;
 
-        // Remove AFK when the user talks
-        if (afkUsers.has(authorKey)) {
-            const afkData = afkUsers.get(authorKey);
+    /*
+     * BLEED-STYLE AFK RETURN MESSAGE
+     *
+     * Example:
+     * 👋 @user: Welcome back, you were away for 4 seconds
+     */
+    if (afkUsers.has(authorKey)) {
+      const afkData =
+        afkUsers.get(authorKey);
 
-            afkUsers.delete(authorKey);
+      afkUsers.delete(authorKey);
 
-            await message.channel.send(
-                `👋 Welcome back, <@${message.author.id}>! You are no longer AFK.`
-            ).catch(() => {});
-        }
+      const timeAway =
+        Math.max(
+          0,
+          Date.now() -
+            afkData.timestamp
+        );
 
-        // Check mentions for AFK users
-        for (const [userId] of message.mentions.users) {
-            if (userId === message.author.id) continue;
+      const totalSeconds =
+        Math.floor(
+          timeAway / 1000
+        );
 
-            const key = `${message.guild.id}:${userId}`;
-            const afkData = afkUsers.get(key);
+      const totalMinutes =
+        Math.floor(
+          totalSeconds / 60
+        );
 
-            if (!afkData) continue;
+      const totalHours =
+        Math.floor(
+          totalMinutes / 60
+        );
 
-            const timeAway = Date.now() - afkData.timestamp;
-            const minutes = Math.floor(timeAway / 60000);
+      let timeText;
 
-            let timeText;
+      if (totalSeconds < 60) {
+        timeText =
+          `${totalSeconds} second${
+            totalSeconds === 1
+              ? ''
+              : 's'
+          }`;
+      } else if (totalMinutes < 60) {
+        timeText =
+          `${totalMinutes} minute${
+            totalMinutes === 1
+              ? ''
+              : 's'
+          }`;
+      } else {
+        timeText =
+          `${totalHours} hour${
+            totalHours === 1
+              ? ''
+              : 's'
+          }`;
+      }
 
-            if (minutes < 1) {
-                timeText = 'just now';
-            } else if (minutes === 1) {
-                timeText = '1 minute ago';
-            } else {
-                timeText = `${minutes} minutes ago`;
-            }
-
-            await message.channel.send(
-                `💤 <@${userId}> is currently AFK: **${afkData.reason}**\n` +
-                `They went AFK ${timeText}.`
-            ).catch(() => {});
-        }
-    } catch (error) {
-        logger.error('Error handling AFK:', error);
+      await message.channel
+        .send(
+          `👋 <@${message.author.id}>: Welcome back, you were away for **${timeText}**`
+        )
+        .catch(() => {});
     }
+
+    /*
+     * AFK MENTION DETECTION
+     */
+    for (
+      const [userId] of
+      message.mentions.users
+    ) {
+      if (
+        userId ===
+        message.author.id
+      ) {
+        continue;
+      }
+
+      const key =
+        `${message.guild.id}:${userId}`;
+
+      const afkData =
+        afkUsers.get(key);
+
+      if (!afkData) {
+        continue;
+      }
+
+      const timeAway =
+        Math.max(
+          0,
+          Date.now() -
+            afkData.timestamp
+        );
+
+      const totalSeconds =
+        Math.floor(
+          timeAway / 1000
+        );
+
+      const totalMinutes =
+        Math.floor(
+          totalSeconds / 60
+        );
+
+      const totalHours =
+        Math.floor(
+          totalMinutes / 60
+        );
+
+      let timeText;
+
+      if (totalSeconds < 60) {
+        timeText =
+          `${totalSeconds} second${
+            totalSeconds === 1
+              ? ''
+              : 's'
+          }`;
+      } else if (totalMinutes < 60) {
+        timeText =
+          `${totalMinutes} minute${
+            totalMinutes === 1
+              ? ''
+              : 's'
+          }`;
+      } else {
+        timeText =
+          `${totalHours} hour${
+            totalHours === 1
+              ? ''
+              : 's'
+          }`;
+      }
+
+      await message.channel
+        .send(
+          `💤 <@${userId}> is currently AFK: **${afkData.reason}**\n` +
+          `They went AFK **${timeText}** ago.`
+        )
+        .catch(() => {});
+    }
+  } catch (error) {
+    logger.error(
+      'Error handling AFK:',
+      error
+    );
+  }
 }
