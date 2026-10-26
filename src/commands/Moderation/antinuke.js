@@ -51,11 +51,11 @@ function helpEmbed() {
       [
         '**Anti-Nuke Commands**',
         '',
-        '` ,antinuke enable` — Enable Anti-Nuke',
-        '` ,antinuke disable` — Disable Anti-Nuke',
-        '` ,antinuke status` — View Anti-Nuke status',
-        '` ,antinuke log #channel` — Set the log channel',
-      ].join('\n').replaceAll('` ,', '`,'))
+        '`,antinuke enable` — Enable Anti-Nuke',
+        '`,antinuke disable` — Disable Anti-Nuke',
+        '`,antinuke status` — View Anti-Nuke status',
+        '`,antinuke log #channel` — Set the log channel',
+      ].join('\n')
     );
 }
 
